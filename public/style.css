@@ -1,0 +1,205 @@
+/* ライン職 — 仮ビジュアル（古代遺跡テーマの“砂と石”を意識した暫定パレット） */
+:root {
+  --sand: #d8c4a0;
+  --stone: #6b5d4a;
+  --stone-dark: #3c342a;
+  --bg: #211c16;
+  --bg2: #2c251c;
+  --gold: #e8c468;
+  --gold-soft: #c9a24a;
+  --me: #5fb0d6;
+  --foe: #d6705f;
+  --lit: #ffe08a;
+  --ok: #79d479;
+  --danger: #e2574a;
+  --text: #f0e6d2;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: radial-gradient(circle at 50% 0%, var(--bg2), var(--bg) 70%);
+  color: var(--text);
+  font-family: "Segoe UI", "Yu Gothic", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  max-width: 1100px;
+  margin: 0 auto;
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto auto auto auto auto;
+  gap: 8px;
+  padding: 8px 12px 14px;
+}
+
+/* ---- トップバー ---- */
+#topbar {
+  display: flex; align-items: center; gap: 14px;
+  border-bottom: 1px solid var(--stone-dark);
+  padding-bottom: 6px;
+}
+#topbar h1 { font-size: 18px; margin: 0; letter-spacing: 1px; color: var(--gold); }
+#topbar h1 .sub { font-size: 12px; color: var(--gold-soft); letter-spacing: 0; }
+#turn-indicator { margin-left: auto; font-size: 14px; font-weight: 600; }
+#turn-indicator .me { color: var(--me); }
+#turn-indicator .foe { color: var(--foe); }
+
+.btn {
+  background: var(--stone); color: var(--text); border: 1px solid var(--stone-dark);
+  border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  transition: filter .12s;
+}
+.btn:hover { filter: brightness(1.15); }
+.btn.primary { background: var(--gold-soft); color: #2a2010; border-color: var(--gold); font-weight: 700; }
+.btn:disabled { opacity: .4; cursor: default; filter: none; }
+
+/* ---- プレイヤー領域 ---- */
+.side {
+  display: grid;
+  grid-template-columns: 150px 1fr 110px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.15));
+}
+.side.foe { border: 1px solid rgba(214,112,95,.35); }
+.side.me  { border: 1px solid rgba(95,176,214,.35); }
+
+/* ---- リーダー ---- */
+.leader { display: flex; flex-direction: column; gap: 6px; }
+.leader .who { font-weight: 700; font-size: 14px; }
+.side.foe .leader .who { color: var(--foe); }
+.side.me  .leader .who { color: var(--me); }
+.leader .hp-wrap { background: #1a1610; border-radius: 6px; overflow: hidden; height: 22px; position: relative; border: 1px solid var(--stone-dark); }
+.leader .hp-bar { height: 100%; background: linear-gradient(90deg, #b9433a, #e2574a); transition: width .25s; }
+.leader .hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+.leader .mana { font-size: 13px; }
+.leader .mana .pip { color: var(--gold); }
+.leader .mana .pip.empty { color: #5a503c; }
+
+/* ---- 盤面 3x3 ---- */
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 6px;
+  width: 320px;
+  margin: 0 auto;
+}
+.cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid var(--stone-dark);
+  display: flex; align-items: center; justify-content: center;
+  transition: box-shadow .15s, background .15s, transform .08s;
+}
+/* 空きマスのプレイ可能ハイライト */
+.cell.placeable { cursor: pointer; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,196,104,.35) inset; }
+.cell.placeable:hover { background: rgba(232,196,104,.12); }
+/* 攻撃元として選べる自分の石像 */
+.cell.attacker { cursor: pointer; }
+.cell.attacker .statue { box-shadow: 0 0 0 2px var(--ok), 0 0 10px rgba(121,212,121,.5); }
+/* 再配置の移動元候補 */
+.cell.movable { cursor: pointer; }
+.cell.movable .statue { box-shadow: 0 0 0 2px var(--gold); }
+/* 同座標干渉のハイライト（ホバー時、両盤面の同インデックス） */
+.cell.cross { box-shadow: 0 0 0 2px rgba(255,255,255,.4) inset; }
+/* ライン完成の発光 */
+.cell.lit { animation: litpulse 1.4s ease-in-out infinite; }
+.cell.lit.me  { box-shadow: 0 0 12px 2px var(--lit), 0 0 0 2px var(--lit) inset; }
+.cell.lit.foe { box-shadow: 0 0 12px 2px #ffb36a, 0 0 0 2px #ffb36a inset; }
+@keyframes litpulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.35); } }
+/* 攻撃フラッシュ */
+.cell.flash-atk .statue { animation: lunge .3s ease; }
+.cell.flash-hit { animation: hitshake .3s ease; }
+@keyframes lunge { 0%{transform:translateY(0)} 50%{transform:translateY(-6px) scale(1.06)} 100%{transform:translateY(0)} }
+@keyframes hitshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+/* ---- 石像 ---- */
+.statue {
+  width: 86%; height: 86%;
+  border-radius: 7px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  background: linear-gradient(160deg, var(--sand), #b39b72);
+  color: #2a2010;
+  border: 1px solid #8a7550;
+  position: relative;
+  font-size: 11px;
+}
+.side.me .statue  { background: linear-gradient(160deg, #bfe0ef, #7fb4cc); border-color: #4d7d93; }
+.side.foe .statue { background: linear-gradient(160deg, #efc6bf, #cc8a7f); border-color: #935a4d; }
+.statue .s-name { font-weight: 700; font-size: 11px; line-height: 1; }
+.statue .s-stats { font-weight: 800; font-size: 14px; line-height: 1; }
+.statue .s-stats .atk { color: #6a4a00; }
+.statue .s-stats .atk.boosted { color: #b8460f; text-shadow: 0 0 6px rgba(255,150,40,.7); }
+.statue .s-stats .hp { color: #1f5a1f; }
+.statue .s-stats .hp.hurt { color: #b9322a; }
+.statue .s-kw { position: absolute; top: 2px; right: 4px; font-size: 11px; }
+.statue.sick::after {
+  content: "💤"; position: absolute; bottom: 1px; left: 3px; font-size: 11px; opacity: .8;
+}
+
+/* ---- 山札/手札数 ---- */
+.pile { font-size: 12px; text-align: center; color: #c8bba0; line-height: 1.6; }
+.pile .num { font-size: 16px; font-weight: 700; color: var(--gold); }
+
+/* ---- ログ ---- */
+#log {
+  height: 84px; overflow-y: auto;
+  background: rgba(0,0,0,.3); border: 1px solid var(--stone-dark); border-radius: 8px;
+  padding: 6px 10px; font-size: 12px; line-height: 1.5; color: #d8ccb2;
+}
+#log .entry { opacity: .9; }
+#log .entry.fresh { color: var(--gold); }
+
+/* ---- 手札・操作 ---- */
+#controls { display: flex; align-items: flex-end; gap: 14px; }
+#hand { display: flex; gap: 8px; flex: 1; min-height: 116px; align-items: flex-end; flex-wrap: wrap; }
+.card {
+  width: 88px; height: 116px; border-radius: 8px;
+  background: linear-gradient(160deg, #efe3c4, #d3bd8e);
+  color: #2a2010; border: 1px solid #9c8657;
+  padding: 6px; cursor: pointer; position: relative;
+  display: flex; flex-direction: column; transition: transform .1s, box-shadow .1s;
+  box-shadow: 0 2px 4px rgba(0,0,0,.4);
+}
+.card:hover { transform: translateY(-6px); box-shadow: 0 6px 12px rgba(0,0,0,.5); }
+.card.unplayable { opacity: .45; cursor: default; }
+.card.unplayable:hover { transform: none; box-shadow: 0 2px 4px rgba(0,0,0,.4); }
+.card.selected { transform: translateY(-10px); box-shadow: 0 0 0 3px var(--gold), 0 8px 16px rgba(0,0,0,.5); }
+.card .c-cost {
+  position: absolute; top: -7px; left: -7px; width: 24px; height: 24px;
+  background: var(--gold-soft); color: #2a2010; border: 2px solid var(--gold);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px;
+}
+.card .c-name { font-weight: 700; font-size: 12px; text-align: center; margin-top: 4px; }
+.card .c-body { flex: 1; display: flex; align-items: center; justify-content: center; }
+.card .c-stats { font-weight: 800; font-size: 20px; }
+.card .c-stats .a { color: #6a4a00; }
+.card .c-stats .h { color: #1f5a1f; }
+.card .c-spell { font-size: 16px; color: #5a3da0; font-weight: 700; }
+.card .c-text { font-size: 9.5px; line-height: 1.25; text-align: center; color: #4a3d22; min-height: 24px; }
+.card .c-kw { text-align: center; font-size: 10px; font-weight: 700; color: #8a3a10; }
+
+/* ---- オーバーレイ ---- */
+#overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  display: flex; align-items: center; justify-content: center; z-index: 20;
+}
+#overlay.hidden { display: none; }
+.overlay-card {
+  background: var(--bg2); border: 2px solid var(--gold); border-radius: 14px;
+  padding: 30px 44px; text-align: center;
+}
+#overlay-msg { font-size: 30px; font-weight: 800; color: var(--gold); margin-bottom: 18px; }
+
+/* CPU 思考中はクリック無効っぽく */
+body.busy .card, body.busy .cell { pointer-events: none; }
+body.busy #end-turn { opacity: .5; }

@@ -1,0 +1,14 @@
+{
+  "name": "line-shoku",
+  "version": "0.1.0",
+  "description": "ライン職 — 古代遺跡テーマの1人用カードバトル（プロトタイプ / コア最小）",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/engine.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}

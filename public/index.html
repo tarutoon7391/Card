@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ライン職 — プロトタイプ</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <h1>ライン職 <span class="sub">— プロトタイプ（コア最小）</span></h1>
+      <div id="turn-indicator"></div>
+      <button id="new-game" class="btn">新しい対戦</button>
+    </header>
+
+    <!-- 相手（奥） -->
+    <section class="side foe">
+      <div class="leader" id="foe-leader"></div>
+      <div class="board" id="foe-board" data-side="foe"></div>
+      <div class="pile" id="foe-pile"></div>
+    </section>
+
+    <!-- 中央：ログ -->
+    <div id="log" aria-label="ログ"></div>
+
+    <!-- 自分（手前） -->
+    <section class="side me">
+      <div class="leader" id="me-leader"></div>
+      <div class="board" id="me-board" data-side="me"></div>
+      <div class="pile" id="me-pile"></div>
+    </section>
+
+    <!-- 手札・操作 -->
+    <footer id="controls">
+      <div id="hand"></div>
+      <button id="end-turn" class="btn primary">ターン終了</button>
+    </footer>
+  </div>
+
+  <!-- ゲーム終了オーバーレイ -->
+  <div id="overlay" class="hidden">
+    <div class="overlay-card">
+      <div id="overlay-msg"></div>
+      <button id="overlay-again" class="btn primary">もう一度</button>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
