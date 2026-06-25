@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <!-- GitHub Pages 用: ルート(/Card/)へのアクセスをゲーム本体(public/)へ即リダイレクト。
+       ローカル/Railway は server.js が public/ を直接配信するので、このファイルは使われない。 -->
+  <meta http-equiv="refresh" content="0; url=./public/index.html" />
+  <link rel="canonical" href="./public/index.html" />
+  <title>ライン職</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #211c16; color: #e8c468;
+      font-family: "Segoe UI", "Yu Gothic", system-ui, sans-serif; }
+    .center { height: 100%; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; }
+    a { color: #e8c468; }
+  </style>
+  <script>location.replace('./public/index.html');</script>
+</head>
+<body>
+  <div class="center">
+    <div>ライン職を読み込み中…</div>
+    <a href="./public/index.html">自動で開かない場合はこちら</a>
+  </div>
+</body>
+</html>
