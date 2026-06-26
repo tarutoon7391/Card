@@ -7,7 +7,40 @@
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="app">
+  <!-- ロビー（モード選択） -->
+  <div id="lobby" class="screen">
+    <div class="lobby-card">
+      <h1 class="lobby-title">ライン職</h1>
+      <p class="lobby-sub">古代遺跡テーマのカードバトル</p>
+      <button id="btn-cpu" class="btn primary big">CPU と対戦</button>
+      <div class="online-box">
+        <div class="online-head">オンライン対戦</div>
+        <div class="online-grid">
+          <button id="btn-create" class="btn big">部屋を作る</button>
+          <button id="btn-quick" class="btn big">クイックマッチ</button>
+        </div>
+        <div class="join-row">
+          <input id="join-code" maxlength="4" placeholder="合言葉" autocomplete="off" />
+          <button id="btn-join" class="btn">コードで参加</button>
+        </div>
+      </div>
+      <div id="lobby-error" class="error"></div>
+    </div>
+  </div>
+
+  <!-- 待機（部屋作成 / クイックマッチ） -->
+  <div id="waiting" class="screen hidden">
+    <div class="lobby-card">
+      <div id="waiting-msg" class="waiting-msg"></div>
+      <div class="spinner"></div>
+      <div id="waiting-code" class="waiting-code"></div>
+      <div id="waiting-share"></div>
+      <button id="waiting-cancel" class="btn">キャンセル</button>
+    </div>
+  </div>
+
+  <!-- ゲーム本体 -->
+  <div id="app" class="hidden">
     <header id="topbar">
       <h1>ライン職 <span class="sub">— プロトタイプ（コア最小）</span></h1>
       <div id="turn-indicator"></div>
@@ -42,7 +75,10 @@
   <div id="overlay" class="hidden">
     <div class="overlay-card">
       <div id="overlay-msg"></div>
-      <button id="overlay-again" class="btn primary">もう一度</button>
+      <div class="overlay-btns">
+        <button id="overlay-again" class="btn primary">もう一度</button>
+        <button id="overlay-lobby" class="btn hidden">ロビーへ</button>
+      </div>
     </div>
   </div>
 

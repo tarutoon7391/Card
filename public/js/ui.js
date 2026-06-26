@@ -1,7 +1,12 @@
 // ===========================================================================
 // ui.js — 描画と入力処理。engine の純粋関数を呼ぶだけで、ゲームの真実は engine が持つ。
-// （将来オンライン化する場合、ここの applyAction 呼び出しを「サーバーへ action 送信」に
-//   差し替えるだけで済むように、UI は state を読んで描くことに徹している）
+//
+// 2 つのモードで同じ盤面 UI を使う：
+//   ・cpu    : ローカルで applyAction を直接適用し、CPU ターンを ai.js で回す（オフライン）
+//   ・online : 操作は action としてサーバーへ送り、返ってきた state を描くだけ（サーバー権威）
+//
+// engine は DOM 非依存の純粋モジュールなので、UI は「state を読んで描く」「入力を action に
+// 変換する」ことに徹し、適用先（ローカル engine / サーバー）だけをモードで切り替える。
 // ===========================================================================
 
 import { CARD_DB } from './cards.js';
@@ -19,40 +24,93 @@ const KW_ICON = { speed: '⚡', leader: '⚑' };
 
 const G = {
   game: null,
-  humanSeat: 0,
-  cpuSeat: 1,
+  mode: 'cpu',   // 'cpu' | 'online'
+  mySeat: 0,     // 自分の席（online はサーバーが割り当て）
+  foeSeat: 1,    // 相手の席
+  foeLabel: 'CPU',
+  net: null,     // online 時のサーバー接続（net.js の戻り値）
   sel: null,     // 入力モード: {mode:'place'|'repoFrom'|'repoTo', iid, from?}
-  busy: false,   // CPU 行動中・演出中のロック
+  busy: false,   // CPU 行動中・演出中・サーバー応答待ちのロック
   flash: null,   // {side, index, type} 直近アクションの演出
 };
+
+let hooks = { leaveToLobby: () => {}, rematch: () => {} };
+let bound = false;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+export function setHooks(h) { hooks = { ...hooks, ...h }; }
+
 // ---------------------------------------------------------------------------
-// 起動
+// 画面切り替え（ロビー/待機/ゲーム）
 // ---------------------------------------------------------------------------
-export function start() {
-  newGame();
-  bindEvents();
+function showGameScreen() {
+  for (const id of ['lobby', 'waiting']) { const el = $(id); if (el) el.classList.add('hidden'); }
+  $('app').classList.remove('hidden');
 }
 
-function newGame() {
-  G.game = createGame({ humanSeat: G.humanSeat });
+// ---------------------------------------------------------------------------
+// 起動（モードごと）
+// ---------------------------------------------------------------------------
+export function startCpuGame() {
+  G.mode = 'cpu';
+  G.mySeat = 0; G.foeSeat = 1; G.foeLabel = 'CPU';
+  G.net = null;
+  resetGame(createGame());
+  if (G.game.active === G.foeSeat) runCpuTurn();
+}
+
+export function startOnlineGame(net, seat, state) {
+  G.mode = 'online';
+  G.net = net;
+  G.mySeat = seat; G.foeSeat = 1 - seat; G.foeLabel = '相手';
+  resetGame(state);
+}
+
+function resetGame(game) {
+  ensureBound();
+  G.game = game;
   G.sel = null;
   G.flash = null;
   G.busy = false;
+  document.body.classList.remove('busy');
+  showGameScreen();
   $('overlay').classList.add('hidden');
+  updateChrome();
   render();
-  // 先攻が CPU なら即座に CPU ターンを回す
-  if (G.game.active === G.cpuSeat) runCpuTurn();
+}
+
+// 上部「新しい対戦/ロビーへ」ボタンやオーバーレイのラベルをモードに合わせる
+function updateChrome() {
+  $('new-game').textContent = G.mode === 'online' ? 'ロビーへ戻る' : '新しい対戦';
+}
+
+function ensureBound() {
+  if (bound) return;
+  bound = true;
+  bindEvents();
 }
 
 function bindEvents() {
-  $('new-game').onclick = () => newGame();
-  $('overlay-again').onclick = () => newGame();
+  $('new-game').onclick = () => {
+    if (G.mode === 'online') hooks.leaveToLobby();
+    else startCpuGame();
+  };
+  $('overlay-again').onclick = () => {
+    if (G.mode === 'online') {
+      hooks.rematch();
+      $('overlay-msg').textContent = '相手の応答を待っています…';
+      $('overlay-again').disabled = true;
+    } else {
+      startCpuGame();
+    }
+  };
+  const overlayLobby = $('overlay-lobby');
+  if (overlayLobby) overlayLobby.onclick = () => hooks.leaveToLobby();
+
   $('end-turn').onclick = () => {
-    if (!isHumanTurn()) return;
+    if (!isMyTurn()) return;
     G.sel = null;
     doAction({ type: 'END_TURN' });
   };
@@ -69,19 +127,58 @@ function bindEvents() {
   $('hand').addEventListener('click', onHandClick);
 }
 
-function isHumanTurn() {
-  return G.game && G.game.phase === 'playing' && G.game.active === G.humanSeat && !G.busy;
+function isMyTurn() {
+  return G.game && G.game.phase === 'playing' && G.game.active === G.mySeat && !G.busy;
+}
+
+// ---------------------------------------------------------------------------
+// オンライン：サーバーからの通知ハンドラ（app.js から呼ばれる）
+// ---------------------------------------------------------------------------
+export function onlineState(state, events) {
+  G.game = state;
+  G.busy = false;
+  G.sel = null; // 状態が進んだら選択はリセット（安全側）
+  applyEventFlash(events);
+  render();
+  if (G.game.phase === 'gameover') showOverlay();
+}
+
+export function onlineOpponentLeft() {
+  if (G.mode !== 'online') return;
+  $('overlay-msg').textContent = '相手が退室しました';
+  $('overlay-again').classList.add('hidden');
+  const lobbyBtn = $('overlay-lobby');
+  if (lobbyBtn) lobbyBtn.classList.remove('hidden');
+  $('overlay').classList.remove('hidden');
+}
+
+export function onlineRematchOffered() {
+  // 相手が「もう一度」を押した。こちらも押せば再戦が始まる（startOnlineGame が来る）。
+  if (G.game && G.game.phase === 'gameover') {
+    $('overlay-msg').textContent = '相手は再戦を希望しています';
+  }
+}
+
+// 相手の攻撃などをこちら側でも軽く演出する
+function applyEventFlash(events) {
+  if (!events) return;
+  for (const e of events) {
+    if (e.kind === 'attack' || e.kind === 'leaderHit') {
+      const side = e.seat === G.mySeat ? 'me' : 'foe';
+      G.flash = { side, index: e.index, type: 'atk' };
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
 // 入力
 // ---------------------------------------------------------------------------
 function onHandClick(e) {
-  if (!isHumanTurn()) return;
+  if (!isMyTurn()) return;
   const cardEl = e.target.closest('.card');
   if (!cardEl) return;
   const iid = Number(cardEl.dataset.iid);
-  const me = G.game.players[G.humanSeat];
+  const me = G.game.players[G.mySeat];
   const inst = me.hand.find((c) => c.instanceId === iid);
   if (!inst) return;
   const card = CARD_DB[inst.cardId];
@@ -106,11 +203,11 @@ function onHandClick(e) {
 }
 
 function onCellClick(e, side) {
-  if (!isHumanTurn()) return;
+  if (!isMyTurn()) return;
   const cellEl = e.target.closest('.cell');
   if (!cellEl) return;
   const i = Number(cellEl.dataset.index);
-  const me = G.game.players[G.humanSeat];
+  const me = G.game.players[G.mySeat];
 
   // 配置モード（自分の盤面の空きマス）
   if (G.sel && G.sel.mode === 'place' && side === 'me') {
@@ -135,7 +232,7 @@ function onCellClick(e, side) {
   }
   // 選択なし → 自分の石像で攻撃
   if (!G.sel && side === 'me') {
-    if (hasValidAttack(G.game, G.humanSeat, i)) {
+    if (hasValidAttack(G.game, G.mySeat, i)) {
       G.flash = { side: 'me', index: i, type: 'atk' };
       doAction({ type: 'ATTACK', from: i });
     }
@@ -153,14 +250,22 @@ function onCellHover(e, on) {
 }
 
 // ---------------------------------------------------------------------------
-// アクション適用
+// アクション適用（モードで適用先を切り替える）
 // ---------------------------------------------------------------------------
 function doAction(action) {
+  if (G.mode === 'online') {
+    // サーバー権威：ローカルでは適用せず送信のみ。応答(state)が来たら再描画。
+    G.busy = true;            // 応答が来るまで多重入力を防ぐ
+    G.net.send({ t: 'action', action });
+    render();                // busy 反映（ボタン無効化など）
+    return;
+  }
+  // --- ローカル(CPU)モード：従来どおり ---
   const res = applyAction(G.game, action);
   if (!res.ok) { render(); return; } // 不正手は無視（描画だけ更新）
   render();
   if (G.game.phase === 'gameover') { showOverlay(); return; }
-  if (G.game.active === G.cpuSeat && !G.busy) runCpuTurn();
+  if (G.game.active === G.foeSeat && !G.busy) runCpuTurn();
 }
 
 async function runCpuTurn() {
@@ -169,7 +274,7 @@ async function runCpuTurn() {
   render();
   await sleep(500);
   let guard = 0;
-  while (G.game.phase === 'playing' && G.game.active === G.cpuSeat && guard++ < 80) {
+  while (G.game.phase === 'playing' && G.game.active === G.foeSeat && guard++ < 80) {
     const action = aiNextAction(G.game);
     if (action.type === 'ATTACK') G.flash = { side: 'foe', index: action.from, type: 'atk' };
     const res = applyAction(G.game, action);
@@ -190,32 +295,32 @@ function render() {
   const g = G.game;
   if (!g) return;
   renderTurnIndicator();
-  renderLeader('foe-leader', G.cpuSeat);
-  renderLeader('me-leader', G.humanSeat);
-  renderBoard('foe-board', G.cpuSeat, 'foe');
-  renderBoard('me-board', G.humanSeat, 'me');
-  renderPile('foe-pile', G.cpuSeat);
-  renderPile('me-pile', G.humanSeat);
+  renderLeader('foe-leader', G.foeSeat);
+  renderLeader('me-leader', G.mySeat);
+  renderBoard('foe-board', G.foeSeat, 'foe');
+  renderBoard('me-board', G.mySeat, 'me');
+  renderPile('foe-pile', G.foeSeat);
+  renderPile('me-pile', G.mySeat);
   renderHand();
   renderLog();
-  $('end-turn').disabled = !isHumanTurn();
+  $('end-turn').disabled = !isMyTurn();
   applyFlash();
 }
 
 function renderTurnIndicator() {
   const g = G.game;
   const seatLabel = (seat) => seat === g.firstPlayer ? '先攻' : '後攻';
-  const whoCls = g.active === G.humanSeat ? 'me' : 'foe';
-  const whoTxt = g.active === G.humanSeat ? 'あなた' : 'CPU';
+  const whoCls = g.active === G.mySeat ? 'me' : 'foe';
+  const whoTxt = g.active === G.mySeat ? 'あなた' : G.foeLabel;
   $('turn-indicator').innerHTML =
     `ターン ${g.turnNumber}　手番: <span class="${whoCls}">${whoTxt}</span>`
-    + `<span style="opacity:.6"> （あなた=${seatLabel(G.humanSeat)}）</span>`;
+    + `<span style="opacity:.6"> （あなた=${seatLabel(G.mySeat)}）</span>`;
 }
 
 function renderLeader(elId, seat) {
   const g = G.game;
   const p = g.players[seat];
-  const who = seat === G.humanSeat ? 'あなた' : 'CPU';
+  const who = seat === G.mySeat ? 'あなた' : G.foeLabel;
   const role = seat === g.firstPlayer ? '先攻' : '後攻';
   const pct = Math.max(0, (p.hp / LEADER_HP) * 100);
   let pips = '';
@@ -242,7 +347,7 @@ function renderBoard(elId, seat, side) {
     if (lit.has(i)) classes.push('lit', side);
 
     // 入力ヒント（自分のターン・自分の盤面のみ）
-    if (side === 'me' && isHumanTurn()) {
+    if (side === 'me' && isMyTurn()) {
       if (G.sel && (G.sel.mode === 'place' || G.sel.mode === 'repoTo') && s == null) classes.push('placeable');
       else if (G.sel && G.sel.mode === 'repoFrom' && s != null) classes.push('movable');
       else if (!G.sel && hasValidAttack(g, seat, i)) classes.push('attacker');
@@ -285,11 +390,11 @@ function renderPile(elId, seat) {
 
 function renderHand() {
   const g = G.game;
-  const me = g.players[G.humanSeat];
+  const me = g.players[G.mySeat];
   let html = '';
   for (const inst of me.hand) {
     const card = CARD_DB[inst.cardId];
-    const affordable = isHumanTurn() && card.cost <= me.mana;
+    const affordable = isMyTurn() && card.cost <= me.mana;
     const selected = G.sel && G.sel.iid === inst.instanceId;
     const cls = ['card'];
     if (!affordable) cls.push('unplayable');
@@ -326,7 +431,7 @@ function renderLog() {
 
 function applyFlash() {
   if (!G.flash) return;
-  const { side, index, type } = G.flash;
+  const { side, index } = G.flash;
   G.flash = null;
   const boardId = side === 'me' ? 'me-board' : 'foe-board';
   const foeBoardId = side === 'me' ? 'foe-board' : 'me-board';
@@ -337,7 +442,14 @@ function applyFlash() {
 }
 
 function showOverlay() {
-  const win = G.game.winner === G.humanSeat;
-  $('overlay-msg').innerHTML = win ? '🏆 あなたの勝ち！' : '💀 あなたの負け…';
+  const win = G.game.winner === G.mySeat;
+  $('overlay-msg').textContent = win ? '🏆 あなたの勝ち！' : '💀 あなたの負け…';
+  // 再戦ボタンの文言/状態をモードに合わせて復元
+  const again = $('overlay-again');
+  again.classList.remove('hidden');
+  again.disabled = false;
+  again.textContent = G.mode === 'online' ? 'もう一度（再戦）' : 'もう一度';
+  const lobbyBtn = $('overlay-lobby');
+  if (lobbyBtn) lobbyBtn.classList.toggle('hidden', G.mode !== 'online');
   $('overlay').classList.remove('hidden');
 }

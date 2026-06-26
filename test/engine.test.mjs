@@ -3,7 +3,7 @@
 
 import {
   createGame, applyAction, effectiveAtk, completedLines, lineBonus,
-  canAct, hasValidAttack, LINES,
+  canAct, hasValidAttack, LINES, serializeFor,
 } from '../public/js/engine.js';
 
 let pass = 0, fail = 0;
@@ -187,6 +187,33 @@ console.log('== 再配置 ==');
   eq(s.players[0].board[0], null, '移動元は空に');
   ok(s.players[0].board[8] != null, '移動先に石像');
   eq(s.players[0].board[8].pos, 8, 'pos が更新される');
+}
+
+// ===========================================================================
+console.log('== 席ごとの状態直列化（オンライン用の隠匿）==');
+{
+  const s = freshGame(0); // 先攻=0, 後攻=1（後攻は起動の石込みで手札6枚）
+  const view0 = serializeFor(s, 0); // 席0の視点
+  const view1 = serializeFor(s, 1); // 席1の視点
+
+  // 自分の手札は中身が見える
+  ok(view0.players[0].hand.every((c) => c && c.cardId), '自分(席0)の手札は cardId が見える');
+  ok(view1.players[1].hand.every((c) => c && c.cardId), '自分(席1)の手札は cardId が見える');
+  // 相手の手札は中身が伏せられる（null 埋め）が、枚数は一致する
+  ok(view0.players[1].hand.every((c) => c === null), '相手(席1)の手札中身は隠れる');
+  eq(view0.players[1].hand.length, 6, '相手手札の枚数は保持される');
+  ok(view1.players[0].hand.every((c) => c === null), '相手(席0)の手札中身は隠れる');
+  eq(view1.players[0].hand.length, 5, '相手手札の枚数は保持される');
+  // 山札は両者とも中身が伏せられる（枚数のみ）
+  ok(view0.players[0].deck.every((c) => c === null), '自分の山札中身も隠れる');
+  eq(view0.players[0].deck.length, s.players[0].deck.length, '自分の山札枚数は保持');
+  // seed / rng はクライアントへ渡さない
+  ok(view0.seed === undefined, 'seed は送らない');
+  ok(view0.rng === undefined, 'rng は送らない');
+  // 盤面・HP・マナなど公開情報は保持
+  eq(view0.active, s.active, 'active は保持');
+  eq(view0.turnNumber, s.turnNumber, 'turnNumber は保持');
+  eq(view0.players[0].hp, s.players[0].hp, 'hp は保持');
 }
 
 // ===========================================================================

@@ -133,9 +133,12 @@ export function createGame(opts = {}) {
   state.firstPlayer = first;
 
   // デッキ構築・シャッフル・初期手札
+  // 注: セットアップ中のイベント（draw/turnStart）はログに残さないので、
+  //     state.log ではなく使い捨て配列へ流す（さもないとログに [object Object] が混ざる）。
+  const setupEvents = [];
   for (const p of state.players) {
     p.deck = shuffle(buildDeck(), rng); // cardId 配列（末尾がトップ）
-    for (let i = 0; i < START_HAND; i++) drawCard(state, p, state.log);
+    for (let i = 0; i < START_HAND; i++) drawCard(state, p, setupEvents);
   }
   // 後攻だけ「起動の石」を初期手札へ
   const secondSeat = 1 - first;
@@ -144,7 +147,7 @@ export function createGame(opts = {}) {
   // 先攻ターン1の開始処理（マナ+1、ただしドローなし）
   state.active = first;
   state.turnNumber = 1;
-  startTurn(state, state.log);
+  startTurn(state, setupEvents);
 
   return state;
 }
@@ -346,6 +349,38 @@ function checkWin(state, events) {
 // ---------------------------------------------------------------------------
 function seatName(state, seat) {
   return seat === state.firstPlayer ? '先攻' : '後攻';
+}
+
+// ---------------------------------------------------------------------------
+// サーバー権威オンライン用：指定 seat の視点で state を直列化する。
+//   - 盤面（board）は公開情報なので両者ぶんそのまま送る
+//   - 自分の手札は中身込み、相手の手札は枚数だけ（null 埋め＝中身を隠す）
+//   - 山札は両者とも枚数だけ（次の引きを予測されないよう中身を隠す）
+//   - seed / rng はクライアントへ送らない（決定的乱数を再現されると不正の元）
+// クライアント側 ui.js は p.hand / p.deck の length しか触らない（相手手札は描画しない）
+// ので、null 埋め配列でそのまま描画ロジックが動く。
+// ---------------------------------------------------------------------------
+export function serializeFor(state, seat) {
+  const players = state.players.map((p) => ({
+    seat: p.seat,
+    hp: p.hp,
+    maxMana: p.maxMana,
+    mana: p.mana,
+    board: p.board,
+    hand: p.seat === seat
+      ? p.hand.map((c) => ({ instanceId: c.instanceId, cardId: c.cardId }))
+      : new Array(p.hand.length).fill(null),
+    deck: new Array(p.deck.length).fill(null),
+  }));
+  return {
+    active: state.active,
+    turnNumber: state.turnNumber,
+    firstPlayer: state.firstPlayer,
+    phase: state.phase,
+    winner: state.winner,
+    log: state.log.slice(),
+    players,
+  };
 }
 function cellName(i) {
   const rows = ['上', '中', '下'];

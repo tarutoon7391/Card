@@ -203,3 +203,65 @@ body {
 /* CPU 思考中はクリック無効っぽく */
 body.busy .card, body.busy .cell { pointer-events: none; }
 body.busy #end-turn { opacity: .5; }
+
+/* ---- 画面切り替え ---- */
+.hidden { display: none !important; }
+.screen {
+  min-height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+}
+
+/* ---- ロビー / 待機カード ---- */
+.lobby-card {
+  width: 100%; max-width: 380px;
+  background: linear-gradient(180deg, var(--bg2), #241d15);
+  border: 2px solid var(--gold-soft); border-radius: 16px;
+  padding: 28px 26px; text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+.lobby-title { margin: 0; font-size: 34px; letter-spacing: 4px; color: var(--gold); }
+.lobby-sub { margin: 6px 0 22px; font-size: 13px; color: var(--gold-soft); }
+
+.btn.big { width: 100%; padding: 13px; font-size: 15px; }
+.lobby-card .btn.primary.big { margin-bottom: 18px; }
+
+.online-box {
+  border: 1px solid var(--stone-dark); border-radius: 12px;
+  padding: 14px; background: rgba(0,0,0,.2);
+}
+.online-head { font-size: 13px; color: var(--gold-soft); margin-bottom: 10px; letter-spacing: 1px; }
+.online-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.online-grid .btn.big { padding: 11px; font-size: 13px; }
+
+.join-row { display: flex; gap: 8px; }
+.join-row input {
+  flex: 1; min-width: 0; text-align: center; letter-spacing: 4px; text-transform: uppercase;
+  background: #1a1610; color: var(--text); border: 1px solid var(--stone-dark);
+  border-radius: 6px; padding: 9px 10px; font-size: 16px; font-weight: 700;
+}
+.join-row input::placeholder { letter-spacing: 1px; font-weight: 400; color: #6a5f48; }
+.join-row .btn { white-space: nowrap; }
+
+.error { color: var(--danger); font-size: 13px; min-height: 18px; margin-top: 14px; }
+
+/* ---- 待機画面 ---- */
+.waiting-msg { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 18px; }
+.waiting-code { font-size: 15px; margin-bottom: 14px; }
+.waiting-code b { font-size: 26px; letter-spacing: 6px; color: var(--gold); }
+.spinner {
+  width: 34px; height: 34px; margin: 0 auto 18px;
+  border: 3px solid var(--stone-dark); border-top-color: var(--gold);
+  border-radius: 50%; animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.share-row { display: flex; gap: 6px; margin: 4px 0 8px; }
+.share-row input {
+  flex: 1; min-width: 0; background: #1a1610; color: #c8bba0;
+  border: 1px solid var(--stone-dark); border-radius: 6px; padding: 8px; font-size: 11px;
+}
+.hint { font-size: 11.5px; color: #9b8f74; margin-bottom: 16px; line-height: 1.5; }
+#waiting-cancel { margin-top: 4px; }
+
+/* ---- オーバーレイのボタン並び ---- */
+.overlay-btns { display: flex; gap: 10px; justify-content: center; }
