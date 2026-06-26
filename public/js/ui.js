@@ -12,15 +12,16 @@
 import { CARD_DB } from './cards.js';
 import {
   createGame, applyAction, effectiveAtk, completedLines, lineBonus,
-  hasValidAttack, canAct, BOARD_SIZE, LEADER_HP, MAX_MANA,
+  hasValidAttack, canAct, adjacentCells, BOARD_SIZE, LEADER_HP, MAX_MANA,
 } from './engine.js';
 import { aiNextAction } from './ai.js';
 
 // 盤面に表示する短縮名
 const SHORT = {
   seihei: '整列兵', totsugeki: '突撃兵', denrei: '伝令', lineload: 'ロード',
+  zoshoku: '増殖兵', kihei: '旗兵', kaginawa: '番兵', kaeshi: '返し', token: '石兵',
 };
-const KW_ICON = { speed: '⚡', leader: '⚑' };
+const KW_ICON = { speed: '⚡', leader: '⚑', counter: '⟲' };
 
 const G = {
   game: null,
@@ -187,18 +188,41 @@ function onHandClick(e) {
   // 同じカード再クリックで選択解除
   if (G.sel && G.sel.iid === iid) { G.sel = null; render(); return; }
 
+  const foe = G.game.players[G.foeSeat];
+  const hasStatue = me.board.some((s) => s != null);
+  const hasEmpty = me.board.some((s) => s == null);
+  const foeHasStatue = foe.board.some((s) => s != null);
+
   if (card.type === 'statue') {
     G.sel = { mode: 'place', iid };
     render();
-  } else if (card.spell === 'reposition') {
-    // 自分の石像が1体以上、空きマスが1つ以上必要
-    const hasStatue = me.board.some((s) => s != null);
-    const hasEmpty = me.board.some((s) => s == null);
-    if (!hasStatue || !hasEmpty) return;
-    G.sel = { mode: 'repoFrom', iid };
-    render();
-  } else if (card.spell === 'mana') {
-    doAction({ type: 'PLAY', instanceId: iid });
+    return;
+  }
+
+  // 呪文：targeting で入力フローを切り替える
+  switch (card.targeting) {
+    case 'none': // 起動の石など、対象なしで即時
+      doAction({ type: 'PLAY', instanceId: iid });
+      break;
+    case 'move-friendly': // 再配置（自分の石像 → 空き）
+      if (hasStatue && hasEmpty) { G.sel = { mode: 'repoFrom', iid }; render(); }
+      break;
+    case 'two-empty': // 双子の歩兵（空き2マス）
+      if (me.board.filter((s) => s == null).length >= 2) { G.sel = { mode: 'twinA', iid }; render(); }
+      break;
+    case 'push-enemy': { // 突き飛ばし（敵 → 隣接する空き）
+      const canPush = foe.board.some((s, i) => s != null && adjacentCells(i).some((j) => foe.board[j] == null));
+      if (canPush) { G.sel = { mode: 'pushFrom', iid }; render(); }
+      break;
+    }
+    case 'friendly': // 味方1体を対象（目覚め/再起/守護）
+      if (hasStatue) { G.sel = { mode: 'friendly', iid }; render(); }
+      break;
+    case 'enemy': // 敵1体を対象（風化/崩落）
+      if (foeHasStatue) { G.sel = { mode: 'enemy', iid }; render(); }
+      break;
+    default:
+      break;
   }
 }
 
@@ -208,34 +232,48 @@ function onCellClick(e, side) {
   if (!cellEl) return;
   const i = Number(cellEl.dataset.index);
   const me = G.game.players[G.mySeat];
+  const foe = G.game.players[G.foeSeat];
+  const sel = G.sel;
 
-  // 配置モード（自分の盤面の空きマス）
-  if (G.sel && G.sel.mode === 'place' && side === 'me') {
-    if (me.board[i] == null) {
-      doAction({ type: 'PLAY', instanceId: G.sel.iid, index: i });
-      G.sel = null;
+  if (sel) {
+    const play = (extra) => { doAction({ type: 'PLAY', instanceId: sel.iid, ...extra }); G.sel = null; };
+    switch (sel.mode) {
+      case 'place': // 石像を空きマスへ
+        if (side === 'me' && me.board[i] == null) play({ index: i });
+        return;
+      case 'repoFrom': // 再配置：移動元
+        if (side === 'me' && me.board[i] != null) { G.sel = { mode: 'repoTo', iid: sel.iid, from: i }; render(); }
+        return;
+      case 'repoTo': // 再配置：移動先
+        if (side === 'me' && me.board[i] == null) play({ from: sel.from, to: i });
+        return;
+      case 'twinA': // 双子：1体目
+        if (side === 'me' && me.board[i] == null) { G.sel = { mode: 'twinB', iid: sel.iid, a: i }; render(); }
+        return;
+      case 'twinB': // 双子：2体目（1体目と別マス）
+        if (side === 'me' && me.board[i] == null && i !== sel.a) play({ cells: [sel.a, i] });
+        return;
+      case 'friendly': // 味方1体を対象
+        if (side === 'me' && me.board[i] != null) play({ target: i });
+        return;
+      case 'enemy': // 敵1体を対象
+        if (side === 'foe' && foe.board[i] != null) play({ target: i });
+        return;
+      case 'pushFrom': // 突き飛ばし：押す敵を選ぶ
+        if (side === 'foe' && foe.board[i] != null) { G.sel = { mode: 'pushTo', iid: sel.iid, from: i }; render(); }
+        return;
+      case 'pushTo': // 突き飛ばし：押し先（隣接する空き）
+        if (side === 'foe' && foe.board[i] == null && adjacentCells(sel.from).includes(i)) play({ target: sel.from, to: i });
+        return;
+      default:
+        return;
     }
-    return;
   }
-  // 再配置：移動元選択
-  if (G.sel && G.sel.mode === 'repoFrom' && side === 'me') {
-    if (me.board[i] != null) { G.sel = { mode: 'repoTo', iid: G.sel.iid, from: i }; render(); }
-    return;
-  }
-  // 再配置：移動先選択
-  if (G.sel && G.sel.mode === 'repoTo' && side === 'me') {
-    if (me.board[i] == null) {
-      doAction({ type: 'PLAY', instanceId: G.sel.iid, from: G.sel.from, to: i });
-      G.sel = null;
-    }
-    return;
-  }
+
   // 選択なし → 自分の石像で攻撃
-  if (!G.sel && side === 'me') {
-    if (hasValidAttack(G.game, G.mySeat, i)) {
-      G.flash = { side: 'me', index: i, type: 'atk' };
-      doAction({ type: 'ATTACK', from: i });
-    }
+  if (side === 'me' && hasValidAttack(G.game, G.mySeat, i)) {
+    G.flash = { side: 'me', index: i, type: 'atk' };
+    doAction({ type: 'ATTACK', from: i });
   }
 }
 
@@ -346,11 +384,17 @@ function renderBoard(elId, seat, side) {
     const classes = ['cell'];
     if (lit.has(i)) classes.push('lit', side);
 
-    // 入力ヒント（自分のターン・自分の盤面のみ）
-    if (side === 'me' && isMyTurn()) {
-      if (G.sel && (G.sel.mode === 'place' || G.sel.mode === 'repoTo') && s == null) classes.push('placeable');
-      else if (G.sel && G.sel.mode === 'repoFrom' && s != null) classes.push('movable');
-      else if (!G.sel && hasValidAttack(g, seat, i)) classes.push('attacker');
+    // 入力ヒント（自分のターン中。対象選択は相手盤面にも出す）
+    if (isMyTurn()) {
+      const sel = G.sel;
+      if (side === 'me') {
+        if (sel && (sel.mode === 'place' || sel.mode === 'repoTo' || sel.mode === 'twinA' || sel.mode === 'twinB') && s == null) classes.push('placeable');
+        else if (sel && (sel.mode === 'repoFrom' || sel.mode === 'friendly') && s != null) classes.push('movable');
+        else if (!sel && hasValidAttack(g, seat, i)) classes.push('attacker');
+      } else { // 相手盤面
+        if (sel && (sel.mode === 'enemy' || sel.mode === 'pushFrom') && s != null) classes.push('movable');
+        else if (sel && sel.mode === 'pushTo' && s == null && adjacentCells(sel.from).includes(i)) classes.push('placeable');
+      }
     }
 
     html += `<div class="${classes.join(' ')}" data-index="${i}" data-side="${side}">`;

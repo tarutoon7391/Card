@@ -38,8 +38,8 @@ console.log('== セットアップ ==');
   ok(!s.players[0].hand.some((c) => c.cardId === 'kido'), '先攻は起動の石を持たない');
   eq(s.players[0].maxMana, 1, '先攻ターン1の最大マナ1');
   eq(s.players[0].mana, 1, '先攻ターン1のマナ1');
-  // 先攻ターン1はドローなし → デッキ20-5=15
-  eq(s.players[0].deck.length, 15, '先攻はターン1ドローなしでデッキ15');
+  // 先攻ターン1はドローなし → デッキ64-5=59（全16種×4枚）
+  eq(s.players[0].deck.length, 59, '先攻はターン1ドローなしでデッキ59');
 }
 
 // ===========================================================================
@@ -214,6 +214,210 @@ console.log('== 席ごとの状態直列化（オンライン用の隠匿）==')
   eq(view0.active, s.active, 'active は保持');
   eq(view0.turnNumber, s.turnNumber, 'turnNumber は保持');
   eq(view0.players[0].hp, s.players[0].hp, 'hp は保持');
+}
+
+// ===========================================================================
+// 拡張カードの効果
+// ===========================================================================
+function giveHand(state, seat, cardId, mana = 10) {
+  const iid = 7000 + Math.floor(mana * 13);
+  state.players[seat].hand = [{ instanceId: iid, cardId }];
+  state.players[seat].mana = mana;
+  return iid;
+}
+
+console.log('== 整列兵：ライン完成で1ドロー ==');
+{
+  const s = freshGame(0);
+  // 横[0,1,2] のうち [0,1] を整列兵で埋め、3枚目を手札から置いて完成させる
+  putStatue(s, 0, 0, { atk: 1, hp: 1, summonedTurn: 0 });
+  putStatue(s, 0, 1, { atk: 1, hp: 1, summonedTurn: 0 });
+  s.players[0].board[0].cardId = 'seihei';
+  s.players[0].board[1].cardId = 'seihei';
+  const iid = giveHand(s, 0, 'seihei'); // 手札をこの1枚だけにリセット
+  const r = applyAction(s, { type: 'PLAY', instanceId: iid, index: 2 });
+  ok(r.ok, '整列兵を置けた');
+  eq(completedLines(s.players[0].board).length, 1, 'ライン完成');
+  // 置いた整列兵＋既存2体、計3体の整列兵がライン完成で各1ドロー。
+  // 手札は1枚を消費して空 → 3ドローで3枚。
+  eq(s.players[0].hand.length, 3, '整列兵3体ぶん各1ドロー');
+}
+
+console.log('== 終撃のラインロード：バーン ==');
+{
+  const s = freshGame(0);
+  // 先に横ラインを1本完成させてから（このターン内）ラインロードを出す
+  putStatue(s, 0, 0, { atk: 1, hp: 1, summonedTurn: 0 });
+  putStatue(s, 0, 1, { atk: 1, hp: 1, summonedTurn: 0 });
+  const iid1 = giveHand(s, 0, 'seihei');
+  applyAction(s, { type: 'PLAY', instanceId: iid1, index: 2 }); // ライン完成（1本）
+  eq(s.players[0].linesCompletedThisTurn, 1, '今ターン完成1本');
+  const before = s.players[1].hp;
+  const iid2 = giveHand(s, 0, 'lineload');
+  applyAction(s, { type: 'PLAY', instanceId: iid2, index: 4 });
+  eq(s.players[1].hp, before - 2, 'ラインロードで 1×2 = 2 バーン');
+}
+
+console.log('== 増殖兵：右隣にコピー ==');
+{
+  const s = freshGame(0);
+  const iid = giveHand(s, 0, 'zoshoku');
+  applyAction(s, { type: 'PLAY', instanceId: iid, index: 0 });
+  ok(s.players[0].board[0] != null, '本体が0に');
+  ok(s.players[0].board[1] != null, '右隣1にコピー');
+  eq(s.players[0].board[1].cardId, 'token', 'コピーはトークン');
+}
+
+console.log('== 双子の歩兵：2体召喚 ==');
+{
+  const s = freshGame(0);
+  const iid = giveHand(s, 0, 'futago');
+  const r = applyAction(s, { type: 'PLAY', instanceId: iid, cells: [0, 8] });
+  ok(r.ok, '双子成功');
+  ok(s.players[0].board[0] && s.players[0].board[8], '2マスに石兵');
+  // 同じマス2つはエラー
+  const s2 = freshGame(0);
+  const iid2 = giveHand(s2, 0, 'futago');
+  ok(!applyAction(s2, { type: 'PLAY', instanceId: iid2, cells: [0, 0] }).ok, '同じマスは不正');
+}
+
+console.log('== 突き飛ばし：敵を隣へ ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 1, 4, { atk: 2, hp: 2 });
+  const iid = giveHand(s, 0, 'tsukitobashi');
+  const r = applyAction(s, { type: 'PLAY', instanceId: iid, target: 4, to: 1 });
+  ok(r.ok, '突き飛ばし成功');
+  eq(s.players[1].board[4], null, '元位置は空');
+  ok(s.players[1].board[1] != null, '隣へ移動');
+  // 非隣接はエラー
+  const s2 = freshGame(0);
+  putStatue(s2, 1, 4, { atk: 2, hp: 2 });
+  const iid2 = giveHand(s2, 0, 'tsukitobashi');
+  ok(!applyAction(s2, { type: 'PLAY', instanceId: iid2, target: 4, to: 0 }).ok, '非隣接は不正');
+}
+
+console.log('== 鉤縄の番兵：正面へ引き寄せ ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 1, 0, { atk: 3, hp: 2 }); // 敵が左上に
+  const iid = giveHand(s, 0, 'kaginawa');
+  // 正面(同座標0)が空なら、敵を0へ引き寄せ
+  const r = applyAction(s, { type: 'PLAY', instanceId: iid, index: 0, pull: 0 });
+  // 番兵を0に置く → 正面(敵盤の0)に既に敵がいるので引き寄せ不可。別マスで検証し直す
+  ok(r.ok, '番兵召喚');
+}
+{
+  const s = freshGame(0);
+  putStatue(s, 1, 0, { atk: 3, hp: 2 }); // 敵が左上(0)に
+  const iid = giveHand(s, 0, 'kaginawa');
+  applyAction(s, { type: 'PLAY', instanceId: iid, index: 4 }); // 番兵を中央(4)に
+  // 正面(敵盤の4)は空 → 敵0を4へ引き寄せ（自動で最強を選ぶ）
+  eq(s.players[1].board[0], null, '敵の元位置は空');
+  ok(s.players[1].board[4] != null, '敵が正面4へ');
+}
+
+console.log('== 目覚めの号令：召喚酔い解除 ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 0, 0, { atk: 2, hp: 2, summonedTurn: 1 }); // 今ターン召喚＝酔い
+  putStatue(s, 1, 0, { atk: 1, hp: 1 });
+  ok(!hasValidAttack(s, 0, 0), '解除前は攻撃不可');
+  const iid = giveHand(s, 0, 'mezame');
+  applyAction(s, { type: 'PLAY', instanceId: iid, target: 0 });
+  ok(hasValidAttack(s, 0, 0), '解除後は攻撃可');
+}
+
+console.log('== 再起の鼓動：再攻撃 ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 0, 0, { atk: 2, hp: 2, summonedTurn: 0 });
+  putStatue(s, 1, 0, { atk: 1, hp: 5 });
+  applyAction(s, { type: 'ATTACK', from: 0 });
+  ok(!hasValidAttack(s, 0, 0), '一度攻撃したら不可');
+  const iid = giveHand(s, 0, 'saiki');
+  applyAction(s, { type: 'PLAY', instanceId: iid, target: 0 });
+  ok(hasValidAttack(s, 0, 0), '再起で再攻撃可');
+}
+
+console.log('== 守護の石壁：致死を1回耐える ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 0, 0, { atk: 9, hp: 2, summonedTurn: 0 });
+  putStatue(s, 1, 0, { atk: 1, hp: 2 });
+  s.players[1].board[0].shield = true; // 相手がシールド持ち
+  const before = s.players[1].hp;
+  applyAction(s, { type: 'ATTACK', from: 0 });
+  ok(s.players[1].board[0] != null, 'シールドで生存');
+  eq(s.players[1].board[0].hp, 1, 'HP1で残る');
+  eq(s.players[1].hp, before, '撃破されないので貫通なし');
+  ok(!s.players[1].board[0].shield, 'シールドは消費');
+}
+
+console.log('== 返しの石像：反撃 ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 0, 0, { atk: 2, hp: 2, summonedTurn: 0 });
+  putStatue(s, 1, 0, { atk: 1, hp: 3, keywords: ['counter'] }); // 返しの石像役
+  applyAction(s, { type: 'ATTACK', from: 0 }); // 倒せない(2<3) → 反撃される
+  ok(s.players[1].board[0] != null, '返しの石像は生存');
+  eq(s.players[0].board[0].hp, 1, '反撃1で攻撃側HP2→1');
+}
+{
+  // 撃破された場合は反撃しない
+  const s = freshGame(0);
+  putStatue(s, 0, 0, { atk: 5, hp: 2, summonedTurn: 0 });
+  putStatue(s, 1, 0, { atk: 3, hp: 3, keywords: ['counter'] });
+  applyAction(s, { type: 'ATTACK', from: 0 });
+  eq(s.players[1].board[0], null, '返しの石像は撃破');
+  eq(s.players[0].board[0].hp, 2, '撃破時は反撃なし（HP無傷）');
+}
+
+console.log('== 風化：攻撃力-2 ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 1, 4, { atk: 3, hp: 3 });
+  const iid = giveHand(s, 0, 'fuka');
+  applyAction(s, { type: 'PLAY', instanceId: iid, target: 4 });
+  eq(s.players[1].board[4].atk, 1, '3-2=1');
+  // 0未満にはしない
+  const s2 = freshGame(0);
+  putStatue(s2, 1, 4, { atk: 1, hp: 3 });
+  const iid2 = giveHand(s2, 0, 'fuka');
+  applyAction(s2, { type: 'PLAY', instanceId: iid2, target: 4 });
+  eq(s2.players[1].board[4].atk, 0, '0未満にしない');
+}
+
+console.log('== 崩落：破壊（貫通なし） ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 1, 4, { atk: 5, hp: 5 });
+  const before = s.players[1].hp;
+  const iid = giveHand(s, 0, 'horaku');
+  applyAction(s, { type: 'PLAY', instanceId: iid, target: 4 });
+  eq(s.players[1].board[4], null, '破壊された');
+  eq(s.players[1].hp, before, '崩落では貫通ダメージなし');
+  // シールドは破壊を1回耐える
+  const s2 = freshGame(0);
+  putStatue(s2, 1, 4, { atk: 5, hp: 5 });
+  s2.players[1].board[4].shield = true;
+  const iid2 = giveHand(s2, 0, 'horaku');
+  applyAction(s2, { type: 'PLAY', instanceId: iid2, target: 4 });
+  ok(s2.players[1].board[4] != null, '守護で破壊を耐える');
+}
+
+console.log('== 連鎖の旗兵：ライン完成で石兵召喚（1ターン1回） ==');
+{
+  const s = freshGame(0);
+  putStatue(s, 0, 0, { atk: 1, hp: 1, summonedTurn: 0 });
+  putStatue(s, 0, 1, { atk: 1, hp: 1, summonedTurn: 0 });
+  s.players[0].board[0].cardId = 'kihei';
+  const occupiedBefore = s.players[0].board.filter((x) => x).length;
+  const iid = giveHand(s, 0, 'seihei');
+  applyAction(s, { type: 'PLAY', instanceId: iid, index: 2 }); // 横[0,1,2]完成
+  eq(completedLines(s.players[0].board).length >= 1, true, 'ライン完成');
+  // 旗兵が石兵を1体追加 → 置いた整列兵(+1)＋トークン(+1) = +2
+  eq(s.players[0].board.filter((x) => x).length, occupiedBefore + 2, '旗兵が石兵を1体追加');
 }
 
 // ===========================================================================
