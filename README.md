@@ -3,6 +3,8 @@
 古代遺跡テーマのカードバトル。**CPU戦（オフライン）** と **オンライン2人対戦** に対応。
 ブラウザ完結・**依存ゼロ**（`server.js` は Node 標準ライブラリだけで動く）。
 
+**🚀 本番（Railway）: https://card-production-0042.up.railway.app**
+
 ## 動かし方
 
 ```bash
