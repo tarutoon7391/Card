@@ -23,6 +23,17 @@ const SHORT = {
 };
 const KW_ICON = { speed: '⚡', leader: '⚑', counter: '⟲' };
 
+// カード絵スロットの“仮絵”（シンボル）。
+// あとで本番イラストにするときは、CSS の .c-art / .s-art に
+// background-image を入れるだけで差し替えられる構造にしてある。
+const ART = {
+  seihei: '🗿', totsugeki: '⚔️', denrei: '🏃', lineload: '🏛️', saihaichi: '🔄',
+  futago: '👥', zoshoku: '➕', kihei: '🚩', tsukitobashi: '💨', kaginawa: '🪝',
+  mezame: '🔔', saiki: '💗', ishikabe: '🛡️', kaeshi: '↩️', fuka: '🍂', horaku: '🪨',
+  token: '♟️', kido: '💎',
+};
+const artOf = (id) => ART[id] || '🗿';
+
 const G = {
   game: null,
   mode: 'cpu',   // 'cpu' | 'online'
@@ -73,8 +84,8 @@ function resetGame(game) {
   ensureBound();
   G.game = game;
   G.sel = null;
-  G.flash = null;
   G.busy = false;
+  prevLit = { me: new Set(), foe: new Set() };
   document.body.classList.remove('busy');
   showGameScreen();
   $('overlay').classList.add('hidden');
@@ -139,8 +150,8 @@ export function onlineState(state, events) {
   G.game = state;
   G.busy = false;
   G.sel = null; // 状態が進んだら選択はリセット（安全側）
-  applyEventFlash(events);
   render();
+  animateEvents(events);
   if (G.game.phase === 'gameover') showOverlay();
 }
 
@@ -160,14 +171,107 @@ export function onlineRematchOffered() {
   }
 }
 
-// 相手の攻撃などをこちら側でも軽く演出する
-function applyEventFlash(events) {
+// ---------------------------------------------------------------------------
+// 演出（イベント駆動アニメ）
+//   applyAction が返す events を受け取り、攻撃の突進・ダメージ数字・撃破の
+//   クランブル・リーダー被弾・画面揺れを再生する。必ず render() の直後に呼ぶ
+//   （render が innerHTML を作り直すので、その上に演出ノードを乗せる）。
+// ---------------------------------------------------------------------------
+let prevLit = { me: new Set(), foe: new Set() };
+
+function boardOf(seat) { return seat === G.mySeat ? $('me-board') : $('foe-board'); }
+function leaderOf(seat) { return seat === G.mySeat ? $('me-leader') : $('foe-leader'); }
+function cellAt(seat, index) { const b = boardOf(seat); return b ? b.querySelector(`.cell[data-index="${index}"]`) : null; }
+function flash(el, cls, ms) { if (!el) return; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); }
+
+function popDamage(host, text, cls) {
+  if (!host) return;
+  const d = document.createElement('div');
+  d.className = 'dmg-pop' + (cls ? ' ' + cls : '');
+  d.textContent = text;
+  host.appendChild(d);
+  setTimeout(() => d.remove(), 850);
+}
+function popLeaderDamage(seat, text, cls) {
+  const el = leaderOf(seat); if (!el) return;
+  popDamage(el.querySelector('.hp-wrap') || el, text, cls);
+  flash(el, 'hit', 440);
+}
+function crumble(cell) {
+  if (!cell) return;
+  const c = document.createElement('div'); c.className = 'crumble';
+  cell.appendChild(c); setTimeout(() => c.remove(), 520);
+}
+function screenShake() {
+  const a = $('app'); if (!a) return;
+  a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake');
+  setTimeout(() => a.classList.remove('shake'), 340);
+}
+
+function animateEvents(events) {
   if (!events) return;
   for (const e of events) {
-    if (e.kind === 'attack' || e.kind === 'leaderHit') {
-      const side = e.seat === G.mySeat ? 'me' : 'foe';
-      G.flash = { side, index: e.index, type: 'atk' };
+    const foe = 1 - e.seat;
+    switch (e.kind) {
+      case 'summon':
+        flash(cellAt(e.seat, e.index), 'summon-pop', 360);
+        break;
+      case 'attack': {
+        flash(cellAt(e.seat, e.index), e.seat === G.mySeat ? 'lunge-up' : 'lunge-down', 360);
+        const tgt = cellAt(foe, e.index);
+        flash(tgt, 'hit', 360);
+        popDamage(tgt, '-' + e.atk);
+        if (e.killed) {
+          crumble(tgt);
+          if (e.pierce > 0) popLeaderDamage(foe, '-' + e.pierce, 'pierce');
+          screenShake();
+        }
+        break;
+      }
+      case 'leaderHit':
+        flash(cellAt(e.seat, e.index), e.seat === G.mySeat ? 'lunge-up' : 'lunge-down', 360);
+        popLeaderDamage(foe, '-' + e.atk);
+        screenShake();
+        break;
+      case 'burn':
+        popLeaderDamage(foe, '-' + e.amount, 'pierce');
+        screenShake();
+        break;
+      case 'destroy':
+        crumble(cellAt(foe, e.index));
+        break;
+      case 'counter':
+        flash(cellAt(e.seat, e.index), 'hit', 360);
+        popDamage(cellAt(e.seat, e.index), '-' + e.dmg);
+        break;
+      case 'counterKill':
+        crumble(cellAt(e.seat, e.index));
+        screenShake();
+        break;
+      case 'shieldSave': {
+        // 生き残った（守護で耐えた）石像のあるマスにリングを出す
+        let cell = cellAt(foe, e.index);
+        if (!cell || !cell.querySelector('.statue')) cell = cellAt(e.seat, e.index);
+        flash(cell, 'shielded', 560);
+        break;
+      }
+      default: break;
     }
+  }
+}
+
+// 新しく完成したラインのマスをバースト発光。render() 後に毎回呼び prevLit を同期。
+function flashNewLines() {
+  if (!G.game) return;
+  for (const [side, seat] of [['me', G.mySeat], ['foe', G.foeSeat]]) {
+    const board = G.game.players[seat].board;
+    const now = new Set();
+    for (const line of completedLines(board)) for (const i of line) now.add(i);
+    const boardEl = side === 'me' ? $('me-board') : $('foe-board');
+    for (const i of now) {
+      if (!prevLit[side].has(i) && boardEl) flash(boardEl.querySelector(`.cell[data-index="${i}"]`), 'line-burst', 620);
+    }
+    prevLit[side] = now;
   }
 }
 
@@ -272,7 +376,6 @@ function onCellClick(e, side) {
 
   // 選択なし → 自分の石像で攻撃
   if (side === 'me' && hasValidAttack(G.game, G.mySeat, i)) {
-    G.flash = { side: 'me', index: i, type: 'atk' };
     doAction({ type: 'ATTACK', from: i });
   }
 }
@@ -302,7 +405,8 @@ function doAction(action) {
   const res = applyAction(G.game, action);
   if (!res.ok) { render(); return; } // 不正手は無視（描画だけ更新）
   render();
-  if (G.game.phase === 'gameover') { showOverlay(); return; }
+  animateEvents(res.events);
+  if (G.game.phase === 'gameover') { setTimeout(showOverlay, 650); return; }
   if (G.game.active === G.foeSeat && !G.busy) runCpuTurn();
 }
 
@@ -314,16 +418,16 @@ async function runCpuTurn() {
   let guard = 0;
   while (G.game.phase === 'playing' && G.game.active === G.foeSeat && guard++ < 80) {
     const action = aiNextAction(G.game);
-    if (action.type === 'ATTACK') G.flash = { side: 'foe', index: action.from, type: 'atk' };
     const res = applyAction(G.game, action);
     if (!res.ok) break; // 想定外：止める
     render();
-    await sleep(action.type === 'END_TURN' ? 200 : 520);
+    animateEvents(res.events);
+    await sleep(action.type === 'END_TURN' ? 220 : 560);
   }
   G.busy = false;
   document.body.classList.remove('busy');
   render();
-  if (G.game.phase === 'gameover') showOverlay();
+  if (G.game.phase === 'gameover') setTimeout(showOverlay, 650);
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +446,7 @@ function render() {
   renderHand();
   renderLog();
   $('end-turn').disabled = !isMyTurn();
-  applyFlash();
+  flashNewLines();
 }
 
 function renderTurnIndicator() {
@@ -418,6 +522,7 @@ function statueHTML(board, i, seat) {
   return `
     <div class="statue ${sick ? 'sick' : ''}">
       <div class="s-name">${name}</div>
+      <div class="s-art">${artOf(s.cardId)}</div>
       <div class="s-stats">
         <span class="atk ${boosted ? 'boosted' : ''}">${eff}</span>/<span class="hp ${hurt ? 'hurt' : ''}">${s.hp}</span>
       </div>
@@ -441,6 +546,7 @@ function renderHand() {
     const affordable = isMyTurn() && card.cost <= me.mana;
     const selected = G.sel && G.sel.iid === inst.instanceId;
     const cls = ['card'];
+    if (card.type === 'spell') cls.push('spell');
     if (!affordable) cls.push('unplayable');
     if (selected) cls.push('selected');
 
@@ -455,9 +561,12 @@ function renderHand() {
     html += `
       <div class="${cls.join(' ')}" data-iid="${inst.instanceId}">
         <div class="c-cost">${card.cost}</div>
-        <div class="c-name">${card.name}</div>
-        <div class="c-body">${body}</div>
-        ${text}
+        <div class="card-inner">
+          <div class="c-name">${card.name}</div>
+          <div class="c-art">${artOf(card.id)}</div>
+          <div class="c-body">${body}</div>
+          ${text}
+        </div>
       </div>`;
   }
   $('hand').innerHTML = html;
@@ -471,18 +580,6 @@ function renderLog() {
     `<div class="entry ${idx >= lastLogLen ? 'fresh' : ''}">${line}</div>`).join('');
   lastLogLen = log.length;
   el.scrollTop = el.scrollHeight;
-}
-
-function applyFlash() {
-  if (!G.flash) return;
-  const { side, index } = G.flash;
-  G.flash = null;
-  const boardId = side === 'me' ? 'me-board' : 'foe-board';
-  const foeBoardId = side === 'me' ? 'foe-board' : 'me-board';
-  const src = $(boardId).querySelector(`.cell[data-index="${index}"]`);
-  const tgt = $(foeBoardId).querySelector(`.cell[data-index="${index}"]`);
-  if (src) { src.classList.add('flash-atk'); setTimeout(() => src.classList.remove('flash-atk'), 320); }
-  if (tgt) { tgt.classList.add('flash-hit'); setTimeout(() => tgt.classList.remove('flash-hit'), 320); }
 }
 
 function showOverlay() {
