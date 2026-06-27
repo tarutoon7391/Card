@@ -56,7 +56,12 @@ const server = http.createServer((req, res) => {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    // キャッシュ無効化: デプロイ後すぐ最新のJS/CSS/HTMLが反映されるように
+    // （プロトタイプ段階では古い資産を掴まないことを優先。負荷対策より鮮度優先）。
+    res.writeHead(200, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    });
     res.end(data);
   });
 });
