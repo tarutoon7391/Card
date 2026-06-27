@@ -1,206 +1,400 @@
-/* ライン職 — 仮ビジュアル（古代遺跡テーマの“砂と石”を意識した暫定パレット） */
+/* ============================================================================
+   ライン職 — 古代遺跡テーマ・プレミアムCSS（画像アセット不要 / カード絵は後で差込可）
+   配色は「砂・石・金・苔」。質感は CSS グラデ＋ベベル影＋SVGノイズで作る。
+   ========================================================================== */
 :root {
   --sand: #d8c4a0;
+  --sand-dk: #b39b72;
   --stone: #6b5d4a;
   --stone-dark: #3c342a;
-  --bg: #211c16;
-  --bg2: #2c251c;
+  --bg: #14110c;
+  --bg2: #221a12;
   --gold: #e8c468;
+  --gold-hi: #ffe9a8;
   --gold-soft: #c9a24a;
-  --me: #5fb0d6;
-  --foe: #d6705f;
+  --gold-deep: #8a6a26;
+  --me: #6cc0e6;
+  --me-deep: #2c6d8c;
+  --foe: #e0846f;
+  --foe-deep: #8c4233;
   --lit: #ffe08a;
   --ok: #79d479;
   --danger: #e2574a;
   --text: #f0e6d2;
+  --ink: #2a2010;
+  --serif: "Cinzel", "Trajan Pro", Georgia, "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --sans: "Segoe UI", "Yu Gothic", system-ui, sans-serif;
+  /* 微細な石のざらつき（SVGノイズ） */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: radial-gradient(circle at 50% 0%, var(--bg2), var(--bg) 70%);
+  background:
+    radial-gradient(120% 90% at 50% -10%, #3a2c1c 0%, var(--bg2) 38%, var(--bg) 78%);
   color: var(--text);
-  font-family: "Segoe UI", "Yu Gothic", system-ui, sans-serif;
+  font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+/* 背景の質感レイヤー（苔の光・遺跡の暗がり・砂塵） */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(60% 40% at 50% 8%, rgba(232,196,104,.10), transparent 70%),
+    radial-gradient(50% 50% at 12% 90%, rgba(108,192,230,.06), transparent 70%),
+    radial-gradient(50% 50% at 88% 88%, rgba(224,132,111,.06), transparent 70%);
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: var(--grain);
+  background-size: 220px 220px;
+  opacity: .05; mix-blend-mode: overlay;
 }
 
 #app {
-  max-width: 1100px;
+  max-width: 1120px;
   margin: 0 auto;
   min-height: 100%;
   display: grid;
   grid-template-rows: auto auto auto auto auto;
-  gap: 8px;
-  padding: 8px 12px 14px;
+  gap: 10px;
+  padding: 10px 14px 16px;
 }
 
 /* ---- トップバー ---- */
 #topbar {
   display: flex; align-items: center; gap: 14px;
-  border-bottom: 1px solid var(--stone-dark);
-  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(232,196,104,.18);
+  padding-bottom: 8px;
 }
-#topbar h1 { font-size: 18px; margin: 0; letter-spacing: 1px; color: var(--gold); }
-#topbar h1 .sub { font-size: 12px; color: var(--gold-soft); letter-spacing: 0; }
+#topbar h1 {
+  font-family: var(--serif); font-size: 22px; margin: 0; letter-spacing: 3px;
+  color: var(--gold);
+  text-shadow: 0 1px 0 #000, 0 0 14px rgba(232,196,104,.35);
+}
+#topbar h1 .sub { font-size: 11px; color: var(--gold-soft); letter-spacing: 0; font-family: var(--sans); }
 #turn-indicator { margin-left: auto; font-size: 14px; font-weight: 600; }
-#turn-indicator .me { color: var(--me); }
-#turn-indicator .foe { color: var(--foe); }
+#turn-indicator .me { color: var(--me); font-weight: 800; }
+#turn-indicator .foe { color: var(--foe); font-weight: 800; }
 
+/* ---- ボタン（彫り込んだ石＋金） ---- */
 .btn {
-  background: var(--stone); color: var(--text); border: 1px solid var(--stone-dark);
-  border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
-  transition: filter .12s;
+  background: linear-gradient(180deg, #5d5240, #43392c);
+  color: var(--text); border: 1px solid #221c14;
+  border-radius: 7px; padding: 8px 15px; font-size: 13px; cursor: pointer;
+  letter-spacing: .5px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 2px 4px rgba(0,0,0,.4);
+  transition: filter .12s, transform .08s;
 }
-.btn:hover { filter: brightness(1.15); }
-.btn.primary { background: var(--gold-soft); color: #2a2010; border-color: var(--gold); font-weight: 700; }
+.btn:hover { filter: brightness(1.16); }
+.btn:active { transform: translateY(1px); }
+.btn.primary {
+  background: linear-gradient(180deg, var(--gold-hi), var(--gold-soft) 55%, var(--gold-deep));
+  color: #34280f; border-color: #6e521c; font-weight: 800; font-family: var(--serif);
+  text-shadow: 0 1px 0 rgba(255,255,255,.4);
+}
 .btn:disabled { opacity: .4; cursor: default; filter: none; }
 
-/* ---- プレイヤー領域 ---- */
+/* ---- プレイヤー領域（石板タブレット） ---- */
 .side {
   display: grid;
-  grid-template-columns: 150px 1fr 110px;
+  grid-template-columns: 160px 1fr 116px;
   align-items: center;
-  gap: 12px;
-  padding: 8px;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.15));
+  gap: 14px;
+  padding: 12px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.28)),
+    linear-gradient(180deg, #2a2218, #1d1710);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.4);
+  position: relative;
 }
-.side.foe { border: 1px solid rgba(214,112,95,.35); }
-.side.me  { border: 1px solid rgba(95,176,214,.35); }
+.side::before { /* 上辺の彫りハイライト */
+  content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+  border: 1px solid rgba(0,0,0,.5);
+}
+.side.foe { box-shadow: inset 0 0 0 1px rgba(224,132,111,.22), inset 0 1px 0 rgba(255,255,255,.05), 0 6px 18px rgba(0,0,0,.45); }
+.side.me  { box-shadow: inset 0 0 0 1px rgba(108,192,230,.22), inset 0 1px 0 rgba(255,255,255,.05), 0 6px 18px rgba(0,0,0,.45); }
 
-/* ---- リーダー ---- */
-.leader { display: flex; flex-direction: column; gap: 6px; }
-.leader .who { font-weight: 700; font-size: 14px; }
+/* ---- リーダー（碑） ---- */
+.leader { display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.leader .who { font-family: var(--serif); font-weight: 700; font-size: 15px; letter-spacing: 1px; }
 .side.foe .leader .who { color: var(--foe); }
 .side.me  .leader .who { color: var(--me); }
-.leader .hp-wrap { background: #1a1610; border-radius: 6px; overflow: hidden; height: 22px; position: relative; border: 1px solid var(--stone-dark); }
-.leader .hp-bar { height: 100%; background: linear-gradient(90deg, #b9433a, #e2574a); transition: width .25s; }
-.leader .hp-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; text-shadow: 0 1px 2px #000; }
-.leader .mana { font-size: 13px; }
-.leader .mana .pip { color: var(--gold); }
-.leader .mana .pip.empty { color: #5a503c; }
+.leader .hp-wrap {
+  background: #140f0a; border-radius: 7px; overflow: hidden; height: 26px; position: relative;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.7), 0 0 0 1px #000;
+}
+.leader .hp-bar {
+  height: 100%;
+  background: linear-gradient(180deg, #ef6a5c, #c4392f 60%, #8f2a22);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
+  transition: width .35s cubic-bezier(.2,.8,.2,1);
+}
+.leader .hp-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; letter-spacing: .5px; text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.6);
+}
+.leader.hit { animation: leaderhit .42s ease; }
+.leader.hit .hp-wrap { animation: hpflash .42s ease; }
+@keyframes leaderhit { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 45%{transform:translateX(5px)} 70%{transform:translateX(-3px)} }
+@keyframes hpflash { 0%,100%{box-shadow: inset 0 2px 5px rgba(0,0,0,.7), 0 0 0 1px #000;} 30%{box-shadow: inset 0 2px 5px rgba(0,0,0,.7), 0 0 0 2px #ff5a4a, 0 0 16px rgba(255,90,74,.8);} }
+.leader .mana { font-size: 12px; color: #c9b79a; letter-spacing: .5px; line-height: 1.7; }
+.leader .mana .pip { color: var(--gold); text-shadow: 0 0 6px rgba(232,196,104,.6); }
+.leader .mana .pip.empty { color: #4a4030; text-shadow: none; }
 
-/* ---- 盤面 3x3 ---- */
+/* ---- 盤面 3x3（石の祭壇） ---- */
 .board {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  gap: 6px;
-  width: 320px;
+  gap: 8px;
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
   margin: 0 auto;
+  padding: 9px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.5)),
+    linear-gradient(160deg, #4a4030, #2c251b);
+  box-shadow: inset 0 2px 10px rgba(0,0,0,.7), inset 0 0 0 1px rgba(255,255,255,.05);
 }
 .cell {
   position: relative;
-  aspect-ratio: 1 / 1;
   border-radius: 8px;
-  background: rgba(0,0,0,.25);
-  border: 1px solid var(--stone-dark);
+  background: linear-gradient(180deg, #1b1610, #100c08);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.8), inset 0 -1px 0 rgba(255,255,255,.04);
   display: flex; align-items: center; justify-content: center;
   transition: box-shadow .15s, background .15s, transform .08s;
 }
-/* 空きマスのプレイ可能ハイライト */
-.cell.placeable { cursor: pointer; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,196,104,.35) inset; }
-.cell.placeable:hover { background: rgba(232,196,104,.12); }
-/* 攻撃元として選べる自分の石像 */
+.cell::before { /* 空きマスに刻まれた菱形（CSS描画・フォント非依存） */
+  content: ""; position: absolute; width: 22px; height: 22px;
+  border: 1.5px solid rgba(232,196,104,.12); border-radius: 3px;
+  transform: rotate(45deg); pointer-events: none; transition: border-color .2s, box-shadow .2s;
+}
+.cell:has(.statue)::before { display: none; }
+.cell.placeable {
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--gold), inset 0 2px 8px rgba(0,0,0,.6), 0 0 12px rgba(232,196,104,.3);
+}
+.cell.placeable::before { border-color: rgba(232,196,104,.5); box-shadow: 0 0 8px rgba(232,196,104,.4); }
+.cell.placeable:hover { background: linear-gradient(180deg, #2a2114, #16110a); }
 .cell.attacker { cursor: pointer; }
-.cell.attacker .statue { box-shadow: 0 0 0 2px var(--ok), 0 0 10px rgba(121,212,121,.5); }
-/* 再配置の移動元候補 */
+.cell.attacker .statue { box-shadow: 0 0 0 2px var(--ok), 0 0 14px rgba(121,212,121,.6), 0 4px 8px rgba(0,0,0,.5); }
 .cell.movable { cursor: pointer; }
-.cell.movable .statue { box-shadow: 0 0 0 2px var(--gold); }
-/* 同座標干渉のハイライト（ホバー時、両盤面の同インデックス） */
-.cell.cross { box-shadow: 0 0 0 2px rgba(255,255,255,.4) inset; }
-/* ライン完成の発光 */
-.cell.lit { animation: litpulse 1.4s ease-in-out infinite; }
-.cell.lit.me  { box-shadow: 0 0 12px 2px var(--lit), 0 0 0 2px var(--lit) inset; }
-.cell.lit.foe { box-shadow: 0 0 12px 2px #ffb36a, 0 0 0 2px #ffb36a inset; }
-@keyframes litpulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.35); } }
-/* 攻撃フラッシュ */
-.cell.flash-atk .statue { animation: lunge .3s ease; }
-.cell.flash-hit { animation: hitshake .3s ease; }
-@keyframes lunge { 0%{transform:translateY(0)} 50%{transform:translateY(-6px) scale(1.06)} 100%{transform:translateY(0)} }
-@keyframes hitshake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+.cell.movable .statue { box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(232,196,104,.55), 0 4px 8px rgba(0,0,0,.5); }
+.cell.cross { box-shadow: inset 0 0 0 2px rgba(255,255,255,.45), inset 0 2px 6px rgba(0,0,0,.7); }
 
-/* ---- 石像 ---- */
+/* ライン完成の発光（脈動） */
+.cell.lit { animation: litpulse 1.5s ease-in-out infinite; }
+.cell.lit.me  { box-shadow: 0 0 16px 3px var(--lit), inset 0 0 0 2px var(--lit); }
+.cell.lit.foe { box-shadow: 0 0 16px 3px #ffb36a, inset 0 0 0 2px #ffb36a; }
+@keyframes litpulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+/* ライン新規成立のバースト */
+.cell.line-burst::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 10px; pointer-events: none;
+  border: 2px solid var(--gold-hi);
+  animation: lineburst .6s ease-out forwards;
+}
+@keyframes lineburst { 0%{opacity:1; transform:scale(.7);} 100%{opacity:0; transform:scale(1.5);} }
+
+/* 攻撃モーション（突進）／被弾 */
+.cell.lunge-up .statue   { animation: lungeUp .34s cubic-bezier(.3,1.4,.4,1); }
+.cell.lunge-down .statue { animation: lungeDown .34s cubic-bezier(.3,1.4,.4,1); }
+@keyframes lungeUp   { 40%{transform:translateY(-14px) scale(1.08);} 100%{transform:translateY(0);} }
+@keyframes lungeDown { 40%{transform:translateY(14px) scale(1.08);} 100%{transform:translateY(0);} }
+.cell.hit { animation: hitshake .34s ease; }
+.cell.hit .statue { animation: hitflash .34s ease; }
+@keyframes hitshake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 50%{transform:translateX(5px)} 80%{transform:translateX(-3px)} }
+@keyframes hitflash { 0%,100%{filter:none;} 30%{filter:brightness(1.9) saturate(1.4);} }
+.cell.shielded::after {
+  content: ""; position: absolute; inset: -2px; border-radius: 9px; pointer-events: none;
+  border: 2px solid var(--me); box-shadow: 0 0 16px var(--me);
+  animation: shieldring .55s ease-out forwards;
+}
+@keyframes shieldring { 0%{opacity:1; transform:scale(.85);} 100%{opacity:0; transform:scale(1.25);} }
+
+/* 撃破クランブル（石が砕ける） */
+.crumble {
+  position: absolute; inset: 0; pointer-events: none; z-index: 5; border-radius: 8px;
+  background: radial-gradient(circle, rgba(216,196,160,.85), rgba(120,100,70,.5) 60%, transparent 72%);
+  animation: crumble .5s ease-out forwards;
+}
+.crumble::before, .crumble::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    radial-gradient(3px 3px at 30% 40%, #cdbb95 60%, transparent),
+    radial-gradient(2px 2px at 60% 30%, #b6a079 60%, transparent),
+    radial-gradient(3px 3px at 70% 65%, #d8c4a0 60%, transparent),
+    radial-gradient(2px 2px at 40% 70%, #9c876090 60%, transparent),
+    radial-gradient(2px 2px at 55% 55%, #cdbb95 60%, transparent);
+  animation: shards .5s ease-out forwards;
+}
+@keyframes crumble { 0%{opacity:1; transform:scale(1);} 100%{opacity:0; transform:scale(1.15);} }
+@keyframes shards { 0%{opacity:1; transform:translateY(0) scale(1);} 100%{opacity:0; transform:translateY(10px) scale(1.4);} }
+
+/* ダメージ数字ポップ */
+.dmg-pop {
+  position: absolute; left: 50%; top: 38%; z-index: 8; pointer-events: none;
+  transform: translate(-50%, -50%);
+  font-family: var(--serif); font-weight: 900; font-size: 26px;
+  color: #ff7a5e; text-shadow: 0 2px 3px #000, 0 0 10px rgba(255,80,60,.8);
+  animation: dmgpop .8s ease-out forwards;
+}
+.dmg-pop.pierce { color: var(--gold-hi); text-shadow: 0 2px 3px #000, 0 0 12px rgba(255,210,120,.9); }
+.dmg-pop.heal   { color: var(--ok); }
+@keyframes dmgpop {
+  0%{opacity:0; transform:translate(-50%,-30%) scale(.5);}
+  20%{opacity:1; transform:translate(-50%,-60%) scale(1.15);}
+  100%{opacity:0; transform:translate(-50%,-150%) scale(1);}
+}
+
+/* 画面の軽い揺れ（大ダメージ時） */
+#app.shake { animation: screenshake .32s ease; }
+@keyframes screenshake { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-3px,2px)} 50%{transform:translate(3px,-2px)} 75%{transform:translate(-2px,-1px)} }
+
+/* ---- 石像（彫像タイル） ---- */
 .statue {
-  width: 86%; height: 86%;
-  border-radius: 7px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px;
-  background: linear-gradient(160deg, var(--sand), #b39b72);
-  color: #2a2010;
+  width: 90%; height: 90%;
+  border-radius: 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  padding: 4px 2px 3px;
+  background: linear-gradient(165deg, var(--sand), var(--sand-dk));
+  color: var(--ink);
   border: 1px solid #8a7550;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -3px 6px rgba(0,0,0,.25), 0 3px 6px rgba(0,0,0,.45);
   position: relative;
   font-size: 11px;
 }
-.side.me .statue  { background: linear-gradient(160deg, #bfe0ef, #7fb4cc); border-color: #4d7d93; }
-.side.foe .statue { background: linear-gradient(160deg, #efc6bf, #cc8a7f); border-color: #935a4d; }
-.statue .s-name { font-weight: 700; font-size: 11px; line-height: 1; }
-.statue .s-stats { font-weight: 800; font-size: 14px; line-height: 1; }
-.statue .s-stats .atk { color: #6a4a00; }
-.statue .s-stats .atk.boosted { color: #b8460f; text-shadow: 0 0 6px rgba(255,150,40,.7); }
-.statue .s-stats .hp { color: #1f5a1f; }
+/* 召喚ポップは「新しく出た石像」だけ。毎描画で再生すると点滅するので cell 側にクラスを付ける */
+.cell.summon-pop .statue { animation: summonpop .34s ease-out; }
+@keyframes summonpop { 0%{transform:scale(.55); opacity:0;} 60%{transform:scale(1.08);} 100%{transform:scale(1); opacity:1;} }
+.side.me .statue  { background: linear-gradient(165deg, #cdeaf6, #7fb4cc); border-color: var(--me-deep); }
+.side.foe .statue { background: linear-gradient(165deg, #f5d2c8, #cc8a7f); border-color: var(--foe-deep); }
+.statue .s-name {
+  font-family: var(--serif); font-weight: 700; font-size: 10px; line-height: 1;
+  letter-spacing: .3px; text-shadow: 0 1px 0 rgba(255,255,255,.4); white-space: nowrap;
+}
+/* カード絵スロット（今はシンボル。後で background-image を入れれば本番絵に） */
+.statue .s-art {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35));
+  background-size: cover; background-position: center; width: 100%;
+}
+.statue .s-stats { font-weight: 900; font-size: 14px; line-height: 1; display: flex; gap: 1px; align-items: baseline; }
+.statue .s-stats .atk { color: #7a4a00; }
+.statue .s-stats .atk.boosted { color: #c4410a; text-shadow: 0 0 8px rgba(255,140,40,.9); }
+.statue .s-stats .hp { color: #186018; }
 .statue .s-stats .hp.hurt { color: #b9322a; }
-.statue .s-kw { position: absolute; top: 2px; right: 4px; font-size: 11px; }
+.statue .s-kw {
+  position: absolute; top: -5px; right: -4px; font-size: 11px;
+  background: radial-gradient(circle, var(--gold-hi), var(--gold-soft));
+  border: 1px solid var(--gold-deep); border-radius: 50%;
+  width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
 .statue.sick::after {
-  content: "💤"; position: absolute; bottom: 1px; left: 3px; font-size: 11px; opacity: .8;
+  content: "💤"; position: absolute; bottom: 0px; left: 2px; font-size: 11px; opacity: .85;
 }
 
-/* ---- 山札/手札数 ---- */
-.pile { font-size: 12px; text-align: center; color: #c8bba0; line-height: 1.6; }
-.pile .num { font-size: 16px; font-weight: 700; color: var(--gold); }
+/* ---- 山札/手札数（石碑の刻み） ---- */
+.pile {
+  font-size: 11px; text-align: center; color: #b8a988; line-height: 1.5;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pile > div {
+  background: linear-gradient(180deg, #2a2218, #1a140d); border-radius: 8px; padding: 5px 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), inset 0 2px 5px rgba(0,0,0,.5);
+}
+.pile .num { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--gold); }
 
 /* ---- ログ ---- */
 #log {
-  height: 84px; overflow-y: auto;
-  background: rgba(0,0,0,.3); border: 1px solid var(--stone-dark); border-radius: 8px;
-  padding: 6px 10px; font-size: 12px; line-height: 1.5; color: #d8ccb2;
+  height: 80px; overflow-y: auto;
+  background: linear-gradient(180deg, rgba(0,0,0,.42), rgba(0,0,0,.3));
+  border: 1px solid rgba(232,196,104,.14); border-radius: 9px;
+  padding: 7px 12px; font-size: 12px; line-height: 1.55; color: #cdbfa3;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.5);
 }
-#log .entry { opacity: .9; }
-#log .entry.fresh { color: var(--gold); }
+#log .entry { opacity: .85; }
+#log .entry.fresh { color: var(--gold); opacity: 1; }
 
-/* ---- 手札・操作 ---- */
+/* ---- 手札 ---- */
 #controls { display: flex; align-items: flex-end; gap: 14px; }
-#hand { display: flex; gap: 8px; flex: 1; min-height: 116px; align-items: flex-end; flex-wrap: wrap; }
+#hand { display: flex; gap: 9px; flex: 1; min-height: 132px; align-items: flex-end; flex-wrap: wrap; }
+
+/* カード（金縁＋石板＋絵スロット） */
 .card {
-  width: 88px; height: 116px; border-radius: 8px;
-  background: linear-gradient(160deg, #efe3c4, #d3bd8e);
-  color: #2a2010; border: 1px solid #9c8657;
-  padding: 6px; cursor: pointer; position: relative;
-  display: flex; flex-direction: column; transition: transform .1s, box-shadow .1s;
-  box-shadow: 0 2px 4px rgba(0,0,0,.4);
+  width: 94px; height: 130px; border-radius: 10px;
+  background:
+    linear-gradient(180deg, var(--gold-hi), var(--gold-soft) 45%, var(--gold-deep));
+  color: var(--ink);
+  padding: 3px; cursor: pointer; position: relative;
+  display: flex; flex-direction: column;
+  transition: transform .12s, box-shadow .12s;
+  box-shadow: 0 3px 6px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5);
 }
-.card:hover { transform: translateY(-6px); box-shadow: 0 6px 12px rgba(0,0,0,.5); }
-.card.unplayable { opacity: .45; cursor: default; }
-.card.unplayable:hover { transform: none; box-shadow: 0 2px 4px rgba(0,0,0,.4); }
-.card.selected { transform: translateY(-10px); box-shadow: 0 0 0 3px var(--gold), 0 8px 16px rgba(0,0,0,.5); }
+.card-inner {
+  flex: 1; border-radius: 7px; padding: 5px 5px 6px;
+  background: linear-gradient(180deg, #efe6cd, #cdb98c);
+  display: flex; flex-direction: column;
+  box-shadow: inset 0 0 0 1px rgba(120,90,40,.35);
+}
+.card:hover { transform: translateY(-8px); box-shadow: 0 10px 18px rgba(0,0,0,.6), 0 0 14px rgba(232,196,104,.4), inset 0 1px 0 rgba(255,255,255,.5); }
+.card.unplayable { filter: grayscale(.55) brightness(.82); cursor: default; }
+.card.unplayable:hover { transform: none; box-shadow: 0 3px 6px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5); }
+.card.selected { transform: translateY(-12px); box-shadow: 0 0 0 3px var(--gold-hi), 0 12px 20px rgba(0,0,0,.6), 0 0 22px rgba(232,196,104,.7); }
 .card .c-cost {
-  position: absolute; top: -7px; left: -7px; width: 24px; height: 24px;
-  background: var(--gold-soft); color: #2a2010; border: 2px solid var(--gold);
+  position: absolute; top: -8px; left: -8px; width: 27px; height: 27px; z-index: 3;
+  background: radial-gradient(circle at 35% 30%, #aef0ff, #2f8fc4 60%, #18506e);
+  color: #fff; border: 2px solid #d8f2ff;
   border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 13px;
+  font-family: var(--serif); font-weight: 900; font-size: 14px;
+  box-shadow: 0 2px 5px rgba(0,0,0,.5), inset 0 1px 2px rgba(255,255,255,.6);
 }
-.card .c-name { font-weight: 700; font-size: 12px; text-align: center; margin-top: 4px; }
-.card .c-body { flex: 1; display: flex; align-items: center; justify-content: center; }
-.card .c-stats { font-weight: 800; font-size: 20px; }
-.card .c-stats .a { color: #6a4a00; }
-.card .c-stats .h { color: #1f5a1f; }
-.card .c-spell { font-size: 16px; color: #5a3da0; font-weight: 700; }
-.card .c-text { font-size: 9.5px; line-height: 1.25; text-align: center; color: #4a3d22; min-height: 24px; }
-.card .c-kw { text-align: center; font-size: 10px; font-weight: 700; color: #8a3a10; }
+.card .c-name {
+  font-family: var(--serif); font-weight: 700; font-size: 11.5px; text-align: center;
+  letter-spacing: .2px; line-height: 1.1; color: #3a2a10; margin-bottom: 3px;
+}
+/* カード絵スロット（シンボル表示。後で .c-art に background-image を差し込めば本番絵に差替え） */
+.card .c-art {
+  height: 40px; border-radius: 5px; margin-bottom: 4px;
+  display: flex; align-items: center; justify-content: center; font-size: 26px;
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(255,255,255,.5), transparent 60%),
+    linear-gradient(180deg, #c8d8e2, #9fb0bd);
+  box-shadow: inset 0 0 0 1px rgba(80,60,30,.4), inset 0 2px 6px rgba(0,0,0,.25);
+  background-size: cover; background-position: center;
+}
+.card.spell .c-art { background: radial-gradient(120% 120% at 50% 0%, rgba(255,255,255,.5), transparent 60%), linear-gradient(180deg, #d8c6ea, #ad93c9); }
+.card .c-body { display: flex; align-items: center; justify-content: center; }
+.card .c-stats { font-family: var(--serif); font-weight: 900; font-size: 18px; }
+.card .c-stats .a { color: #7a4a00; }
+.card .c-stats .h { color: #186018; }
+.card .c-spell { font-size: 13px; color: #6a3da0; font-weight: 800; letter-spacing: 2px; }
+.card .c-text { font-size: 9px; line-height: 1.28; text-align: center; color: #4a3d22; margin-top: 2px; }
+.card .c-kw { text-align: center; font-size: 9.5px; font-weight: 800; color: #9a3a10; letter-spacing: .3px; }
 
 /* ---- オーバーレイ ---- */
 #overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  position: fixed; inset: 0; background: radial-gradient(circle at 50% 40%, rgba(20,14,8,.78), rgba(0,0,0,.9));
   display: flex; align-items: center; justify-content: center; z-index: 20;
+  animation: fadein .3s ease;
 }
+@keyframes fadein { from{opacity:0;} to{opacity:1;} }
 #overlay.hidden { display: none; }
 .overlay-card {
-  background: var(--bg2); border: 2px solid var(--gold); border-radius: 14px;
-  padding: 30px 44px; text-align: center;
+  background: linear-gradient(180deg, #2a2117, #1a140d);
+  border: 2px solid var(--gold-soft); border-radius: 16px;
+  padding: 34px 50px; text-align: center;
+  box-shadow: 0 16px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08), 0 0 40px rgba(232,196,104,.15);
 }
-#overlay-msg { font-size: 30px; font-weight: 800; color: var(--gold); margin-bottom: 18px; }
+#overlay-msg { font-family: var(--serif); font-size: 32px; font-weight: 900; color: var(--gold); margin-bottom: 20px; text-shadow: 0 2px 4px #000, 0 0 20px rgba(232,196,104,.4); }
 
-/* CPU 思考中はクリック無効っぽく */
+/* CPU 思考中 */
 body.busy .card, body.busy .cell { pointer-events: none; }
 body.busy #end-turn { opacity: .5; }
 
@@ -212,56 +406,73 @@ body.busy #end-turn { opacity: .5; }
   padding: 24px 16px;
 }
 
-/* ---- ロビー / 待機カード ---- */
+/* ---- ロビー / 待機 ---- */
 .lobby-card {
-  width: 100%; max-width: 380px;
-  background: linear-gradient(180deg, var(--bg2), #241d15);
-  border: 2px solid var(--gold-soft); border-radius: 16px;
-  padding: 28px 26px; text-align: center;
-  box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  width: 100%; max-width: 400px;
+  background: linear-gradient(180deg, #2a2117, #1a130c);
+  border: 2px solid var(--gold-soft); border-radius: 18px;
+  padding: 32px 28px; text-align: center;
+  box-shadow: 0 16px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.07), 0 0 40px rgba(232,196,104,.1);
 }
-.lobby-title { margin: 0; font-size: 34px; letter-spacing: 4px; color: var(--gold); }
-.lobby-sub { margin: 6px 0 22px; font-size: 13px; color: var(--gold-soft); }
+.lobby-title { font-family: var(--serif); margin: 0; font-size: 42px; letter-spacing: 8px; color: var(--gold); text-shadow: 0 2px 0 #000, 0 0 26px rgba(232,196,104,.45); }
+.lobby-sub { margin: 8px 0 24px; font-size: 13px; color: var(--gold-soft); letter-spacing: 1px; }
 
-.btn.big { width: 100%; padding: 13px; font-size: 15px; }
+.btn.big { width: 100%; padding: 14px; font-size: 15px; }
 .lobby-card .btn.primary.big { margin-bottom: 18px; }
 
-.online-box {
-  border: 1px solid var(--stone-dark); border-radius: 12px;
-  padding: 14px; background: rgba(0,0,0,.2);
-}
-.online-head { font-size: 13px; color: var(--gold-soft); margin-bottom: 10px; letter-spacing: 1px; }
+.online-box { border: 1px solid rgba(232,196,104,.2); border-radius: 12px; padding: 16px; background: rgba(0,0,0,.25); }
+.online-head { font-family: var(--serif); font-size: 13px; color: var(--gold-soft); margin-bottom: 12px; letter-spacing: 2px; }
 .online-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-.online-grid .btn.big { padding: 11px; font-size: 13px; }
+.online-grid .btn.big { padding: 12px; font-size: 13px; }
 
 .join-row { display: flex; gap: 8px; }
 .join-row input {
   flex: 1; min-width: 0; text-align: center; letter-spacing: 4px; text-transform: uppercase;
-  background: #1a1610; color: var(--text); border: 1px solid var(--stone-dark);
-  border-radius: 6px; padding: 9px 10px; font-size: 16px; font-weight: 700;
+  background: #140f0a; color: var(--text); border: 1px solid var(--stone-dark);
+  border-radius: 6px; padding: 10px; font-size: 16px; font-weight: 700;
 }
 .join-row input::placeholder { letter-spacing: 1px; font-weight: 400; color: #6a5f48; }
 .join-row .btn { white-space: nowrap; }
-
 .error { color: var(--danger); font-size: 13px; min-height: 18px; margin-top: 14px; }
 
-/* ---- 待機画面 ---- */
-.waiting-msg { font-size: 16px; font-weight: 700; color: var(--gold); margin-bottom: 18px; }
+.waiting-msg { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--gold); margin-bottom: 18px; }
 .waiting-code { font-size: 15px; margin-bottom: 14px; }
-.waiting-code b { font-size: 26px; letter-spacing: 6px; color: var(--gold); }
+.waiting-code b { font-family: var(--serif); font-size: 28px; letter-spacing: 6px; color: var(--gold); }
 .spinner {
-  width: 34px; height: 34px; margin: 0 auto 18px;
+  width: 36px; height: 36px; margin: 0 auto 18px;
   border: 3px solid var(--stone-dark); border-top-color: var(--gold);
   border-radius: 50%; animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .share-row { display: flex; gap: 6px; margin: 4px 0 8px; }
-.share-row input {
-  flex: 1; min-width: 0; background: #1a1610; color: #c8bba0;
-  border: 1px solid var(--stone-dark); border-radius: 6px; padding: 8px; font-size: 11px;
-}
+.share-row input { flex: 1; min-width: 0; background: #140f0a; color: #c8bba0; border: 1px solid var(--stone-dark); border-radius: 6px; padding: 8px; font-size: 11px; }
 .hint { font-size: 11.5px; color: #9b8f74; margin-bottom: 16px; line-height: 1.5; }
 #waiting-cancel { margin-top: 4px; }
-
-/* ---- オーバーレイのボタン並び ---- */
 .overlay-btns { display: flex; gap: 10px; justify-content: center; }
+
+/* ============================================================================
+   レスポンシブ（スマホ）— 横長前提だが、縦持ちでも崩れず遊べるよう最低限調整
+   ========================================================================== */
+@media (max-width: 720px) {
+  #app { padding: 8px 8px 12px; gap: 8px; }
+  #topbar { flex-wrap: wrap; gap: 8px 10px; }
+  #topbar h1 { font-size: 17px; letter-spacing: 1px; }
+  #topbar h1 .sub { display: none; }
+  #turn-indicator { font-size: 12px; }
+  #new-game { padding: 6px 10px; font-size: 11px; }
+  .side { grid-template-columns: 84px 1fr 50px; gap: 7px; padding: 8px; }
+  .leader .who { font-size: 12px; }
+  .leader .hp-wrap { height: 22px; }
+  .leader .mana { font-size: 10px; line-height: 1.5; }
+  .board { gap: 6px; padding: 7px; }
+  .statue .s-name { font-size: 9px; }
+  .statue .s-art { font-size: 16px; }
+  .statue .s-stats { font-size: 12px; }
+  .pile { font-size: 10px; }
+  #log { height: 56px; font-size: 11px; }
+  #hand { min-height: 116px; gap: 6px; }
+  .card { width: 80px; height: 116px; }
+  .card .c-art { height: 32px; font-size: 21px; }
+  .card .c-name { font-size: 10px; }
+  .card .c-text { font-size: 8px; }
+}
