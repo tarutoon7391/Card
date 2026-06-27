@@ -146,12 +146,16 @@ function isMyTurn() {
 // ---------------------------------------------------------------------------
 // オンライン：サーバーからの通知ハンドラ（app.js から呼ばれる）
 // ---------------------------------------------------------------------------
-export function onlineState(state, events) {
+export async function onlineState(state, events) {
   G.game = state;
-  G.busy = false;
   G.sel = null; // 状態が進んだら選択はリセット（安全側）
+  G.busy = true; // 演出中は入力をロック
+  document.body.classList.add('busy');
   render();
-  animateEvents(events);
+  await animateEvents(events);
+  G.busy = false;
+  document.body.classList.remove('busy');
+  render();
   if (G.game.phase === 'gameover') showOverlay();
 }
 
@@ -192,11 +196,6 @@ function popDamage(host, text, cls) {
   host.appendChild(d);
   setTimeout(() => d.remove(), 850);
 }
-function popLeaderDamage(seat, text, cls) {
-  const el = leaderOf(seat); if (!el) return;
-  popDamage(el.querySelector('.hp-wrap') || el, text, cls);
-  flash(el, 'hit', 440);
-}
 function crumble(cell) {
   if (!cell) return;
   const c = document.createElement('div'); c.className = 'crumble';
@@ -208,71 +207,173 @@ function screenShake() {
   setTimeout(() => a.classList.remove('shake'), 340);
 }
 
-function animateEvents(events) {
-  if (!events) return;
-  for (const e of events) {
-    const foe = 1 - e.seat;
-    switch (e.kind) {
-      case 'summon':
-        flash(cellAt(e.seat, e.index), 'summon-pop', 360);
-        break;
-      case 'attack': {
-        flash(cellAt(e.seat, e.index), e.seat === G.mySeat ? 'lunge-up' : 'lunge-down', 360);
-        const tgt = cellAt(foe, e.index);
-        flash(tgt, 'hit', 360);
-        popDamage(tgt, '-' + e.atk);
-        if (e.killed) {
-          crumble(tgt);
-          if (e.pierce > 0) popLeaderDamage(foe, '-' + e.pierce, 'pierce');
-          screenShake();
+// 効果ラベル（覚醒/守護/風化/破壊…）を一瞬だけ浮かべて「何が起きたか」を言葉でも伝える
+function popLabel(host, text, cls) {
+  if (!host) return;
+  const d = document.createElement('div');
+  d.className = 'fx-label' + (cls ? ' ' + cls : '');
+  d.textContent = text;
+  host.appendChild(d);
+  setTimeout(() => d.remove(), 950);
+}
+// リーダーへのダメージ：HPバーを被弾前→被弾後にドロップさせ「飛んできた」感を出す
+function leaderDamage(seat, amount, cls) {
+  const el = leaderOf(seat); if (!el) return;
+  const bar = el.querySelector('.hp-bar');
+  const finalHp = G.game.players[seat].hp;
+  const preHp = Math.min(LEADER_HP, finalHp + amount);
+  if (bar) {
+    bar.style.transition = 'none';
+    bar.style.width = Math.max(0, preHp / LEADER_HP * 100) + '%';
+    void bar.offsetWidth;        // リフローを挟んでから
+    bar.style.transition = '';   // CSSのトランジションで減少をアニメ
+    bar.style.width = Math.max(0, finalHp / LEADER_HP * 100) + '%';
+  }
+  popDamage(el.querySelector('.hp-wrap') || el, '-' + amount, cls);
+  flash(el, 'hit', 480);
+  screenShake();
+}
+
+// イベント列を「1つずつ間を置いて」再生する（初見でも何が起きたか追える）。
+// 必ず render() の直後に await で呼び、終わるまで G.busy で入力をロックする。
+async function animateEvents(events) {
+  if (events) {
+    for (const e of events) await animateOne(e);
+  }
+  await flashNewLines(); // 最後に「ライン完成＝攻撃力+1」をまとめて見せる
+}
+
+async function animateOne(e) {
+  const foe = 1 - e.seat;
+  switch (e.kind) {
+    case 'summon':
+      flash(cellAt(e.seat, e.index), 'summon-pop', 380);
+      await sleep(260);
+      break;
+    case 'attack': {
+      flash(cellAt(e.seat, e.index), e.seat === G.mySeat ? 'lunge-up' : 'lunge-down', 380);
+      await sleep(170);
+      const tgt = cellAt(foe, e.index);
+      flash(tgt, 'hit', 380);
+      popDamage(tgt, '-' + e.atk);
+      await sleep(e.killed ? 240 : 430);
+      if (e.killed) {
+        crumble(tgt);
+        popLabel(tgt, '撃破', 'fx-bad');
+        await sleep(540);                 // 破壊をしっかり見せる
+        if (e.pierce > 0) {
+          await sleep(240);               // ひと呼吸おいてから…
+          leaderDamage(foe, e.pierce, 'pierce'); // 貫通がリーダーへ飛ぶ
+          await sleep(580);
         }
-        break;
       }
-      case 'leaderHit':
-        flash(cellAt(e.seat, e.index), e.seat === G.mySeat ? 'lunge-up' : 'lunge-down', 360);
-        popLeaderDamage(foe, '-' + e.atk);
-        screenShake();
-        break;
-      case 'burn':
-        popLeaderDamage(foe, '-' + e.amount, 'pierce');
-        screenShake();
-        break;
-      case 'destroy':
-        crumble(cellAt(foe, e.index));
-        break;
-      case 'counter':
-        flash(cellAt(e.seat, e.index), 'hit', 360);
-        popDamage(cellAt(e.seat, e.index), '-' + e.dmg);
-        break;
-      case 'counterKill':
-        crumble(cellAt(e.seat, e.index));
-        screenShake();
-        break;
-      case 'shieldSave': {
-        // 生き残った（守護で耐えた）石像のあるマスにリングを出す
-        let cell = cellAt(foe, e.index);
-        if (!cell || !cell.querySelector('.statue')) cell = cellAt(e.seat, e.index);
-        flash(cell, 'shielded', 560);
-        break;
-      }
-      default: break;
+      break;
     }
+    case 'leaderHit':
+      flash(cellAt(e.seat, e.index), e.seat === G.mySeat ? 'lunge-up' : 'lunge-down', 380);
+      await sleep(200);
+      leaderDamage(foe, e.atk);
+      await sleep(520);
+      break;
+    case 'burn':
+      popLabel(leaderOf(foe), 'バーン', 'fx-burn');
+      await sleep(220);
+      leaderDamage(foe, e.amount, 'pierce');
+      await sleep(560);
+      break;
+    case 'destroy':
+      crumble(cellAt(foe, e.index));
+      popLabel(cellAt(foe, e.index), '破壊', 'fx-bad');
+      await sleep(640);
+      break;
+    case 'counter':
+      flash(cellAt(e.seat, e.index), 'hit', 380);
+      popDamage(cellAt(e.seat, e.index), '-' + e.dmg);
+      popLabel(cellAt(e.seat, e.index), '反撃', 'fx-bad');
+      await sleep(540);
+      break;
+    case 'counterKill':
+      crumble(cellAt(e.seat, e.index));
+      popLabel(cellAt(e.seat, e.index), '反撃で撃破', 'fx-bad');
+      screenShake();
+      await sleep(640);
+      break;
+    case 'shieldSave': {
+      let cell = cellAt(foe, e.index);
+      if (!cell || !cell.querySelector('.statue')) cell = cellAt(e.seat, e.index);
+      flash(cell, 'shielded', 600);
+      popLabel(cell, '守護で耐えた', 'fx-good');
+      await sleep(620);
+      break;
+    }
+    case 'shield': // 守護の石壁を付与
+      flash(cellAt(e.seat, e.index), 'shielded', 600);
+      popLabel(cellAt(e.seat, e.index), '守護', 'fx-good');
+      await sleep(540);
+      break;
+    case 'wake': // 召喚酔い解除
+      flash(cellAt(e.seat, e.index), 'awaken', 640);
+      popLabel(cellAt(e.seat, e.index), '覚醒！', 'fx-good');
+      await sleep(620);
+      break;
+    case 'reattack': // もう一度攻撃できる
+      flash(cellAt(e.seat, e.index), 'awaken', 640);
+      popLabel(cellAt(e.seat, e.index), '再攻撃！', 'fx-good');
+      await sleep(620);
+      break;
+    case 'weaken': { // 風化（攻-2）
+      const cell = cellAt(foe, e.index);
+      flash(cell, 'hit', 380);
+      popDamage(cell, '攻−2', 'debuff');
+      popLabel(cell, '風化', 'fx-bad');
+      await sleep(600);
+      break;
+    }
+    case 'reposition': case 'move':
+      flash(cellAt(e.seat, e.to), 'moved', 440);
+      await sleep(320);
+      break;
+    case 'push': case 'pull':
+      flash(cellAt(foe, e.to), 'moved', 440);
+      await sleep(340);
+      break;
+    case 'mana':
+      flash(leaderOf(e.seat), 'hit', 300);
+      await sleep(220);
+      break;
+    case 'lineDraw': case 'lineSpawn':
+      await sleep(150);
+      break;
+    default:
+      break; // draw / turnStart / turnEnd / gameover は即時
   }
 }
 
-// 新しく完成したラインのマスをバースト発光。render() 後に毎回呼び prevLit を同期。
-function flashNewLines() {
+// 新しく完成したラインを発光させ、攻撃力+1の「+1」を石像に表示。prevLit の同期も担う。
+async function flashNewLines() {
   if (!G.game) return;
+  const fresh = { me: [], foe: [] };
+  let any = false;
   for (const [side, seat] of [['me', G.mySeat], ['foe', G.foeSeat]]) {
     const board = G.game.players[seat].board;
     const now = new Set();
     for (const line of completedLines(board)) for (const i of line) now.add(i);
-    const boardEl = side === 'me' ? $('me-board') : $('foe-board');
-    for (const i of now) {
-      if (!prevLit[side].has(i) && boardEl) flash(boardEl.querySelector(`.cell[data-index="${i}"]`), 'line-burst', 620);
-    }
+    fresh[side] = [...now].filter((i) => !prevLit[side].has(i));
+    if (fresh[side].length) any = true;
     prevLit[side] = now;
   }
+  if (!any) return;
+  for (const side of ['me', 'foe']) {
+    const seat = side === 'me' ? G.mySeat : G.foeSeat;
+    const board = G.game.players[seat].board;
+    const boardEl = side === 'me' ? $('me-board') : $('foe-board');
+    for (const i of fresh[side]) {
+      const cell = boardEl ? boardEl.querySelector(`.cell[data-index="${i}"]`) : null;
+      flash(cell, 'line-burst', 640);
+      if (board[i]) popDamage(cell, '+1', 'buff'); // ライン上は攻撃力+1
+    }
+  }
+  await sleep(660);
 }
 
 // ---------------------------------------------------------------------------
@@ -393,7 +494,7 @@ function onCellHover(e, on) {
 // ---------------------------------------------------------------------------
 // アクション適用（モードで適用先を切り替える）
 // ---------------------------------------------------------------------------
-function doAction(action) {
+async function doAction(action) {
   if (G.mode === 'online') {
     // サーバー権威：ローカルでは適用せず送信のみ。応答(state)が来たら再描画。
     G.busy = true;            // 応答が来るまで多重入力を防ぐ
@@ -401,33 +502,38 @@ function doAction(action) {
     render();                // busy 反映（ボタン無効化など）
     return;
   }
-  // --- ローカル(CPU)モード：従来どおり ---
+  // --- ローカル(CPU)モード：演出が終わるまで入力をロックして1手ずつ見せる ---
   const res = applyAction(G.game, action);
   if (!res.ok) { render(); return; } // 不正手は無視（描画だけ更新）
+  G.busy = true;
+  document.body.classList.add('busy');
   render();
-  animateEvents(res.events);
-  if (G.game.phase === 'gameover') { setTimeout(showOverlay, 650); return; }
-  if (G.game.active === G.foeSeat && !G.busy) runCpuTurn();
+  await animateEvents(res.events);
+  G.busy = false;
+  document.body.classList.remove('busy');
+  if (G.game.phase === 'gameover') { showOverlay(); return; }
+  if (G.game.active === G.foeSeat) runCpuTurn();
+  else render();
 }
 
 async function runCpuTurn() {
   G.busy = true;
   document.body.classList.add('busy');
   render();
-  await sleep(500);
+  await sleep(450);
   let guard = 0;
   while (G.game.phase === 'playing' && G.game.active === G.foeSeat && guard++ < 80) {
     const action = aiNextAction(G.game);
     const res = applyAction(G.game, action);
     if (!res.ok) break; // 想定外：止める
     render();
-    animateEvents(res.events);
-    await sleep(action.type === 'END_TURN' ? 220 : 560);
+    await animateEvents(res.events);          // 演出が終わるまで次の手を待つ
+    await sleep(action.type === 'END_TURN' ? 160 : 240);
   }
   G.busy = false;
   document.body.classList.remove('busy');
   render();
-  if (G.game.phase === 'gameover') setTimeout(showOverlay, 650);
+  if (G.game.phase === 'gameover') showOverlay();
 }
 
 // ---------------------------------------------------------------------------
@@ -446,7 +552,6 @@ function render() {
   renderHand();
   renderLog();
   $('end-turn').disabled = !isMyTurn();
-  flashNewLines();
 }
 
 function renderTurnIndicator() {
