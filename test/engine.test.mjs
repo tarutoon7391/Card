@@ -258,6 +258,20 @@ console.log('== 終撃のラインロード：バーン ==');
   eq(s.players[1].hp, before - 2, 'ラインロードで 1×2 = 2 バーン');
 }
 
+console.log('== 終撃のラインロード：自身の召喚で完成したラインも数える ==');
+{
+  const s = freshGame(0);
+  // 右列[2,5,8] のうち [2,5] を埋め、3枚目をラインロード自身の召喚で完成させる
+  putStatue(s, 0, 2, { atk: 1, hp: 1, summonedTurn: 0 });
+  putStatue(s, 0, 5, { atk: 1, hp: 1, summonedTurn: 0 });
+  const before = s.players[1].hp;
+  const iid = giveHand(s, 0, 'lineload');
+  const r = applyAction(s, { type: 'PLAY', instanceId: iid, index: 8 }); // [2,5,8]完成
+  ok(r.ok, 'ラインロードを置けた');
+  eq(completedLines(s.players[0].board).length, 1, '自身でライン完成');
+  eq(s.players[1].hp, before - 2, '自身の完成ライン1本×2 = 2バーン');
+}
+
 console.log('== 増殖兵：右隣にコピー ==');
 {
   const s = freshGame(0);

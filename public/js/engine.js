@@ -388,6 +388,19 @@ function playCard(state, action) {
   p.mana -= card.cost;
   p.hand.splice(handIdx, 1);
   recomputeLines(state, events);
+  // 終撃のラインロード: バーンは「ライン完成判定の後」に解決する。
+  //   こうすることで“自身の召喚で完成させたライン”も本数に含めて締められる。
+  //   （他の召喚時効果はライン判定の前に処理する＝burn だけ後回しの特例）
+  if (res.statue && CARD_DB[res.statue.cardId].summon === 'burn') {
+    const me = state.players[seat];
+    const foe = state.players[1 - seat];
+    const n = me.linesCompletedThisTurn || 0;
+    if (n > 0) {
+      foe.hp -= n * 2;
+      const lcard = CARD_DB[res.statue.cardId];
+      events.push({ kind: 'burn', seat, amount: n * 2, log: `${seatName(state, seat)}：${lcard.name} で ${n} ライン×2 = ${n * 2} ダメージ` });
+    }
+  }
   checkWin(state, events);
   commit(state, events);
   return { ok: true, events };
@@ -405,9 +418,9 @@ function playStatue(state, action, card, inst, events) {
   p.board[i] = s;
   events.push({ kind: 'summon', seat, index: i, cardId: card.id, log: `${seatName(state, seat)}：${card.name} を ${cellName(i)} に召喚` });
 
-  // 召喚時効果（ライン判定の前に処理する）
+  // 召喚時効果（ライン判定の前に処理する。burn だけは playCard 側で後処理）
   runSummonEffect(state, seat, s, action, events);
-  return { ok: true };
+  return { ok: true, statue: s };
 }
 
 function runSummonEffect(state, seat, statue, action, events) {
@@ -415,14 +428,8 @@ function runSummonEffect(state, seat, statue, action, events) {
   const me = state.players[seat];
   const foe = state.players[1 - seat];
   switch (card.summon) {
-    case 'burn': { // 終撃のラインロード: 今ターン完成させたライン本数×2点
-      const n = me.linesCompletedThisTurn || 0;
-      if (n > 0) {
-        foe.hp -= n * 2;
-        events.push({ kind: 'burn', seat, amount: n * 2, log: `${seatName(state, seat)}：${card.name} で ${n} ライン×2 = ${n * 2} ダメージ` });
-      }
+    case 'burn': // 終撃のラインロード: バーンは playCard 側で「ライン判定の後」に解決する
       break;
-    }
     case 'copyRight': { // 増殖兵: 右隣が空きなら1/1コピー
       const i = statue.pos;
       if (i % 3 < 2 && isEmpty(me.board, i + 1)) {
